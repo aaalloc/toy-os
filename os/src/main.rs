@@ -12,6 +12,8 @@ mod console;
 mod lang_items;
 mod memory;
 mod sbi;
+mod syscall;
+mod trap;
 mod utils;
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -36,8 +38,9 @@ pub fn kmain() -> ! {
 
     #[cfg(test)]
     test_main();
-
     println!("[kernel] Hello, world!");
+    trap::init();
+
     memory::init();
     println!("[kernel] back to world!");
     memory::remap_test();
