@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.tsx": "typescriptreact",
+        "*.y": "yacc",
+        "*.sh": "jinja-shell",
+        "cstdio": "cpp"
+    }
+}
