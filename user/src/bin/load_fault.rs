@@ -14,5 +14,6 @@ fn main() -> i32 {
     unsafe {
         let _i = read_volatile(null_mut::<u8>());
     }
+    println!("Load fault test failed!");
     0
 }

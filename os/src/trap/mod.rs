@@ -60,12 +60,12 @@ pub fn trap_handler() -> ! {
     let cx = current_trap_cx();
     let scause = scause::read();
     let stval = stval::read();
-    println!(
-        "[kernel] Trap: {:?}, scause: {:?}, stval: {:#x}",
-        cx.sepc,
-        scause.cause(),
-        stval
-    );
+    // println!(
+    //     "[kernel] Trap: {:?}, scause: {:?}, stval: {:#x}",
+    //     cx.sepc,
+    //     scause.cause(),
+    //     stval
+    // );
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             cx.sepc += 4;

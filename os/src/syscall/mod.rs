@@ -12,10 +12,10 @@ mod fs;
 mod process;
 
 pub fn syscall(id: usize, args: [usize; 3]) -> isize {
-    println!(
-        "[kernel] syscall: id = {}, args = [{:#x}, {:#x}, {:#x}]",
-        id, args[0], args[1], args[2]
-    );
+    // println!(
+    // "[kernel] syscall: id = {}, args = [{:#x}, {:#x}, {:#x}]",
+    // id, args[0], args[1], args[2]
+    // );
     match id {
         SYSCALL_WRITE => {
             sys_write(args[0], args[1] as *const u8, args[2]);
