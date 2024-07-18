@@ -1,8 +1,8 @@
 //! Implementation of [`TaskContext`]
+use crate::trap::trap_return;
 
-/// Task Context
-#[derive(Copy, Clone, Debug)]
 #[repr(C)]
+/// task context structure containing some registers
 pub struct TaskContext {
     /// return address ( e.g. __restore ) of __switch ASM function
     ra: usize,
@@ -21,14 +21,10 @@ impl TaskContext {
             s: [0; 12],
         }
     }
-
-    /// set task context {__restore ASM funciton, kernel stack, s_0..12 }
-    pub fn goto_restore(kstack_ptr: usize) -> Self {
-        extern "C" {
-            fn __restore();
-        }
+    /// set Task Context{__restore ASM funciton: trap_return, sp: kstack_ptr, s: s_0..12}
+    pub fn goto_trap_return(kstack_ptr: usize) -> Self {
         Self {
-            ra: __restore as usize,
+            ra: trap_return as usize,
             sp: kstack_ptr,
             s: [0; 12],
         }

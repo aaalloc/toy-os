@@ -43,19 +43,14 @@ pub fn kmain() -> ! {
     #[cfg(test)]
     test_main();
     println!("[kernel] Hello, world!");
+    memory::init();
+    memory::remap_test();
     trap::init();
-    loader::load_apps();
+    //trap::enable_interrupt();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     task::run_first_task();
     panic!("Unreachable in rust_main!");
-
-    // memory::init();
-    // println!("[kernel] back to world!");
-    // memory::remap_test();
-
-    // make a pagefault
-    panic!("aaaaaaaaaaaaaaaaaaa");
 }
 
 fn clear_bss() {

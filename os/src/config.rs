@@ -11,14 +11,11 @@ pub const MAX_APP_NUM: usize = 3;
 pub const APP_BASE_ADDRESS: usize = 0x80400000;
 pub const APP_SIZE_LIMIT: usize = 0x20000;
 
-/*
-
-
 /// Return (bottom, top) of a kernel stack in kernel space.
 pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
     let top = TRAMPOLINE - app_id * (KERNEL_STACK_SIZE + PAGE_SIZE);
     let bottom = top - KERNEL_STACK_SIZE;
     (bottom, top)
-} */
+}
 
 pub use crate::board::{CLOCK_FREQ, MEMORY_END, MMIO};
