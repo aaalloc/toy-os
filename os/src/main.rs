@@ -10,13 +10,17 @@ mod board;
 mod config;
 mod console;
 mod lang_items;
+mod loader;
 mod memory;
 mod sbi;
 mod syscall;
+mod task;
+mod timer;
 mod trap;
 mod utils;
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!("link_app.S"));
 
 pub fn test_runner(tests: &[&dyn Fn()]) {
     println!("Running {} tests", tests.len());
@@ -40,10 +44,17 @@ pub fn kmain() -> ! {
     test_main();
     println!("[kernel] Hello, world!");
     trap::init();
+    loader::load_apps();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
+    task::run_first_task();
+    panic!("Unreachable in rust_main!");
 
-    memory::init();
-    println!("[kernel] back to world!");
-    memory::remap_test();
+    // memory::init();
+    // println!("[kernel] back to world!");
+    // memory::remap_test();
+
+    // make a pagefault
     panic!("aaaaaaaaaaaaaaaaaaa");
 }
 
@@ -52,8 +63,8 @@ fn clear_bss() {
         fn sbss();
         fn ebss();
     }
-    (sbss as usize..ebss as usize).for_each(|a| unsafe {
-        //
-        (a as *mut u8).write_volatile(0)
-    });
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
+            .fill(0);
+    }
 }
