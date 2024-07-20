@@ -1,5 +1,5 @@
-# Toyos
-(prononced "Toy Os")
+# toy-os
+Toy project around an kernel written in Rust/RISC-V
 
 Work in progress
 
