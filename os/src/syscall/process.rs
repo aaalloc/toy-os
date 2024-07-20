@@ -7,7 +7,7 @@ use crate::task::{
 use crate::timer::get_time_ms;
 extern crate alloc;
 use alloc::sync::Arc;
-use log::{debug, info};
+use log::{debug, error, info};
 
 #[repr(C)]
 pub struct TimeVal {
@@ -27,14 +27,14 @@ pub fn sys_yield() -> isize {
 
 pub fn sys_get_time(ts: *mut TimeVal) -> isize {
     let t = get_time_ms();
-    // this currently hangs the system
-    unsafe {
-        *ts = TimeVal {
-            tv_sec: t / 1_000_000,
-            tv_usec: t % 1_000_000,
-        };
-    }
-    0
+    // ts ptr is somehow optimized out by the compiler and is null :()
+    // unsafe {
+    //     *ts = TimeVal {
+    //         tv_sec: t / 1_000_000,
+    //         tv_usec: t % 1_000_000,
+    //     };
+    // }
+    t as isize
 }
 
 pub fn sys_getpid() -> isize {
