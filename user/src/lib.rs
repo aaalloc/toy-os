@@ -72,24 +72,24 @@ pub fn exec(path: &str) -> isize {
     sys_exec(path)
 }
 
-pub fn wait(_exit_code: &mut i32) -> isize {
+pub fn wait(exit_code: &mut i32) -> isize {
     loop {
-        // match sys_waitpid(-1, exit_code as *mut _) {
-        // -2 => {
-        // yield_();
-        // }
-        // exit_code => return exit_code,
-        // }
+        match sys_waitpid(-1, exit_code as *mut _) {
+            -2 => {
+                yield_();
+            }
+            exit_code => return exit_code,
+        }
     }
 }
 
-pub fn waitpid(_pid: isize, _exit_code: &mut i32) -> isize {
+pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
     loop {
-        // match sys_waitpid(pid as isize, exit_code as *mut _) {
-        //     -2 => {
-        //         yield_();
-        //     }
-        //     exit_code => return exit_code,
-        // }
+        match sys_waitpid(pid as isize, exit_code as *mut _) {
+            -2 => {
+                yield_();
+            }
+            exit_code => return exit_code,
+        }
     }
 }

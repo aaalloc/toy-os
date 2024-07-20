@@ -26,24 +26,24 @@ pub fn main() -> i32 {
         match c {
             LF | CR => {
                 println!("");
-                // if !line.is_empty() {
-                //     line.push('\0');
-                //     let pid = fork();
-                //     if pid == 0 {
-                //         // child process
-                //         if exec(line.as_str()) == -1 {
-                //             println!("Error when executing!");
-                //             return -4;
-                //         }
-                //         unreachable!();
-                //     } else {
-                //         let mut exit_code: i32 = 0;
-                //         let exit_pid = waitpid(pid as usize, &mut exit_code);
-                //         assert_eq!(pid, exit_pid);
-                //         println!("Shell: Process {} exited with code {}", pid, exit_code);
-                //     }
-                //     line.clear();
-                // }
+                if !line.is_empty() {
+                    line.push('\0');
+                    let pid = fork();
+                    if pid == 0 {
+                        // child process
+                        if exec(line.as_str()) == -1 {
+                            println!("Error when executing!");
+                            return -4;
+                        }
+                        unreachable!();
+                    } else {
+                        let mut exit_code: i32 = 0;
+                        let exit_pid = waitpid(pid as usize, &mut exit_code);
+                        assert_eq!(pid, exit_pid);
+                        println!("Shell: Process {} exited with code {}", pid, exit_code);
+                    }
+                    line.clear();
+                }
                 print!(">> ");
             }
             BS | DL => {
