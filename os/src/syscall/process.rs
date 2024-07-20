@@ -33,3 +33,15 @@ pub fn sys_get_time(ts: *mut TimeVal) -> isize {
     }
     0
 }
+
+pub fn sys_fork() -> isize {
+    todo!();
+}
+
+pub fn sys_exec(_path: *const u8) -> isize {
+    todo!();
+}
+
+pub fn sys_waitpid(_pid: isize, _exit_code: *mut i32) -> isize {
+    todo!();
+}

@@ -57,7 +57,7 @@ pub fn enable_timer_interrupt() {
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
 pub fn trap_handler() -> ! {
-    // set_kernel_trap_entry();
+    set_kernel_trap_entry();
     let cx = current_trap_cx();
     let scause = scause::read();
     let stval = stval::read();
