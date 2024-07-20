@@ -1,3 +1,4 @@
+# .attribute arch, "rv64gc"
 .altmacro
 .macro SAVE_GP n
     sd x\n, \n*8(sp)
@@ -30,6 +31,9 @@ __alltraps:
     sd t1, 33*8(sp)
     # read user stack from sscratch and save it in TrapContext
     csrr t2, sscratch
+    # floating point registers
+    # fsd fs0, 34*8(sp)
+    # fsd fs1, 35*8(sp)
     sd t2, 2*8(sp)
     # load kernel_satp into t0
     ld t0, 34*8(sp)
@@ -64,6 +68,9 @@ __restore:
         LOAD_GP %n
         .set n, n+1
     .endr
+    # restore floating point registers
+    # fld fs0, 34*8(sp)
+    # fld fs1, 35*8(sp)
     # back to user stack
     ld sp, 2*8(sp)
     sret

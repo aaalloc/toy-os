@@ -11,6 +11,7 @@ mod config;
 mod console;
 mod lang_items;
 mod loader;
+mod logging;
 mod memory;
 mod sbi;
 mod syscall;
@@ -19,6 +20,7 @@ mod timer;
 mod trap;
 mod utils;
 use core::arch::global_asm;
+
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
 
@@ -39,6 +41,7 @@ fn trivial_assertion() {
 #[no_mangle]
 pub fn kmain() -> ! {
     clear_bss();
+    logging::init();
 
     #[cfg(test)]
     test_main();

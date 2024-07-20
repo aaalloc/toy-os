@@ -14,6 +14,12 @@ pub extern "C" fn _start() -> ! {
     panic!("unreachable after sys_exit!");
 }
 
+#[repr(C)]
+pub struct TimeVal {
+    pub tv_sec: usize,
+    pub tv_usec: usize,
+}
+
 #[linkage = "weak"]
 #[no_mangle]
 fn main() -> i32 {
@@ -31,6 +37,6 @@ pub fn exit(exit_code: i32) -> isize {
 pub fn yield_() -> isize {
     sys_yield()
 }
-pub fn get_time() -> isize {
-    sys_get_time()
+pub fn get_time(time: &TimeVal) -> isize {
+    sys_get_time(time)
 }

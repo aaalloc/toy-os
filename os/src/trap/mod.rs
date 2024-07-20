@@ -21,6 +21,7 @@ use crate::task::{
 };
 use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
+use log::debug;
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -60,12 +61,12 @@ pub fn trap_handler() -> ! {
     let cx = current_trap_cx();
     let scause = scause::read();
     let stval = stval::read();
-    // println!(
-    //     "[kernel] Trap: {:?}, scause: {:?}, stval: {:#x}",
-    //     cx.sepc,
-    //     scause.cause(),
-    //     stval
-    // );
+    debug!(
+        "[kernel] Trap: {:?}, scause: {:?}, stval: {:#x}",
+        cx.sepc,
+        scause.cause(),
+        stval
+    );
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             cx.sepc += 4;

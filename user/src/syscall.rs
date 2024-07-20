@@ -1,5 +1,7 @@
 use core::arch::asm;
 
+use crate::TimeVal;
+
 const SYSCALL_WRITE: usize = 64;
 const SYSCALL_EXIT: usize = 93;
 const SYSCALL_YIELD: usize = 124;
@@ -31,6 +33,6 @@ pub fn sys_yield() -> isize {
     syscall(SYSCALL_YIELD, [0, 0, 0])
 }
 
-pub fn sys_get_time() -> isize {
-    syscall(SYSCALL_GET_TIME, [0, 0, 0])
+pub fn sys_get_time(time: &TimeVal) -> isize {
+    syscall(SYSCALL_GET_TIME, [time as *const _ as usize, 0, 0])
 }

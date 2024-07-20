@@ -3,6 +3,9 @@ name = "kernel2"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+debug = true
+
 [dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
 sbi-rt = { version = "0.0.3", features = ["legacy"] }

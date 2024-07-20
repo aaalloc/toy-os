@@ -203,6 +203,7 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 }
 
 /// Change the current 'Running' task's program break
+#[allow(dead_code)]
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
