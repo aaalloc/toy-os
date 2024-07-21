@@ -303,7 +303,7 @@ impl MapArea {
             vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
             data_frames: BTreeMap::new(),
             map_type: another.map_type,
-            map_perm: another.map_perm,
+            map_perm: another.map_perm.clone(),
         }
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
@@ -318,7 +318,7 @@ impl MapArea {
                 self.data_frames.insert(vpn, frame);
             }
         }
-        let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
+        let pte_flags = PTEFlags::from_bits(self.map_perm.bits()).unwrap();
         page_table.map(vpn, ppn, pte_flags);
     }
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
@@ -370,6 +370,7 @@ pub enum MapType {
 
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
+    #[derive(Clone)]
     pub struct MapPermission: u8 {
         const R = 1 << 1;
         const W = 1 << 2;
