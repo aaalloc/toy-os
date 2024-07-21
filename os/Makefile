@@ -1,6 +1,6 @@
 TARGET := riscv64gc-unknown-none-elf
 MODE := release
-KERNEL_ELF := target/$(TARGET)/$(MODE)/kernel2
+KERNEL_ELF := target/$(TARGET)/$(MODE)/toy-os
 KERNEL_BIN := $(KERNEL_ELF).bin
 DISASM_TMP := target/$(TARGET)/$(MODE)/asm
 
