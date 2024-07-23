@@ -7,7 +7,7 @@ use crate::task::{
 use crate::timer::get_time_ms;
 extern crate alloc;
 use alloc::sync::Arc;
-use log::{debug, error, info};
+use log::{debug, info};
 
 #[repr(C)]
 pub struct TimeVal {
@@ -25,7 +25,7 @@ pub fn sys_yield() -> isize {
     0
 }
 
-pub fn sys_get_time(ts: *mut TimeVal) -> isize {
+pub fn sys_get_time(_ts: *mut TimeVal) -> isize {
     let t = get_time_ms();
     // ts ptr is somehow optimized out by the compiler and is null :()
     // unsafe {
