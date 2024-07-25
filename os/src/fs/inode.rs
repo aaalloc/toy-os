@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 use bitflags::bitflags;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
-use log::info;
 
 use crate::{drivers::block::BLOCK_DEVICE, memory::UserBuffer, utils::UPSafeCell};
 
@@ -42,7 +41,9 @@ impl OpenFlags {
 }
 
 pub struct OSInode {
+    #[allow(dead_code)]
     readable: bool,
+    #[allow(dead_code)]
     writable: bool,
     inner: UPSafeCell<OSInodeInner>,
 }
@@ -110,13 +111,6 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
-    }
-}
-
-pub fn list_apps() {
-    info!("List of applications");
-    for app in ROOT_INODE.ls() {
-        info!("* {}", app);
     }
 }
 

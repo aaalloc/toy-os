@@ -9,6 +9,8 @@
 mod board;
 mod config;
 mod console;
+mod drivers;
+mod fs;
 mod lang_items;
 mod loader;
 mod logging;

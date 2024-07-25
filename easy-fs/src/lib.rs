@@ -5,6 +5,7 @@ mod block_cache;
 mod block_device;
 pub use block_device::BlockDevice;
 pub use efs::EasyFileSystem;
+pub use vfs::Inode;
 mod efs;
 mod layout;
 mod vfs;

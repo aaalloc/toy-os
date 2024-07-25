@@ -1,4 +1,4 @@
-use crate::loader::get_app_data_from_name;
+use crate::fs::inode::{open_file, OpenFlags};
 use crate::memory::{translated_refmut, translated_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
@@ -7,7 +7,6 @@ use crate::task::{
 use crate::timer::get_time_ms;
 extern crate alloc;
 use alloc::sync::Arc;
-use log::{debug, info};
 
 #[repr(C)]
 pub struct TimeVal {
@@ -58,17 +57,13 @@ pub fn sys_fork() -> isize {
 pub fn sys_exec(path: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, path);
-    debug!("sys_exec: path = {:?}", path);
-    match get_app_data_from_name(path.as_str()) {
-        Some(data) => {
-            let task = current_task().unwrap();
-            task.exec(data);
-            0
-        }
-        None => {
-            info!("sys_exec: failed to find app {}", path);
-            -1
-        }
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let all_data = app_inode.read_all();
+        let task = current_task().unwrap();
+        task.exec(all_data.as_slice());
+        0
+    } else {
+        -1
     }
 }
 

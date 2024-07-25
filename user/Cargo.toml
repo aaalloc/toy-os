@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 buddy_system_allocator = "0.6"
+bitflags = "2.6.0"
 
 [profile.release]
 opt-level = 3
