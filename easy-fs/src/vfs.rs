@@ -46,19 +46,30 @@ impl Inode {
             .modify(self.block_offset, f)
     }
 
-    pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
+    pub fn find(&self, path: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
-        self.read_disk_inode(|disk_inode| {
-            self.find_inode_id(name, disk_inode).map(|inode_id| {
-                let (block_id, block_offset) = fs.get_disk_inode_pos(inode_id);
-                Arc::new(Self::new(
-                    block_id,
-                    block_offset,
-                    self.fs.clone(),
-                    self.block_device.clone(),
-                ))
-            })
-        })
+        let mut block_id = self.block_id as u32;
+        let mut block_offset = self.block_offset;
+        for name in path.split("/").filter(|s| !s.is_empty()) {
+            let inode_id = get_block_cache(block_id as usize, self.block_device.clone())
+                .lock()
+                .read(block_offset, |disk_inode: &DiskInode| {
+                    if disk_inode.is_file() {
+                        return None;
+                    }
+                    self.find_inode_id(name, disk_inode)
+                });
+            if inode_id.is_none() {
+                return None;
+            }
+            (block_id, block_offset) = fs.get_disk_inode_pos(inode_id.unwrap());
+        }
+        Some(Arc::new(Self::new(
+            block_id,
+            block_offset,
+            self.fs.clone(),
+            self.block_device.clone(),
+        )))
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
@@ -78,7 +89,7 @@ impl Inode {
         None
     }
 
-    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
+    fn create_inode(&self, name: &str, inode_type: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
             .modify_disk_inode(|root_inode| {
@@ -99,7 +110,7 @@ impl Inode {
         get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
             .lock()
             .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
-                new_inode.initialize(DiskInodeType::File);
+                new_inode.initialize(inode_type);
             });
         self.modify_disk_inode(|root_inode| {
             // append file in the dirent
@@ -127,6 +138,16 @@ impl Inode {
         // release efs lock automatically by compiler
     }
 
+    /// Create a file in current inode
+    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
+        self.create_inode(name, DiskInodeType::File)
+    }
+
+    /// Create a directory in current inode
+    pub fn create_dir(&self, name: &str) -> Option<Arc<Inode>> {
+        self.create_inode(name, DiskInodeType::Directory)
+    }
+
     fn increase_size(
         &self,
         new_size: u32,
@@ -147,8 +168,11 @@ impl Inode {
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
-            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
             let mut v: Vec<String> = Vec::new();
+            if disk_inode.is_file() {
+                return v;
+            }
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
             for i in 0..file_count {
                 let mut dirent = DirEntry::empty();
                 assert_eq!(
@@ -169,6 +193,7 @@ impl Inode {
     pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize {
         let mut fs = self.fs.lock();
         let size = self.modify_disk_inode(|disk_inode| {
+            assert!(disk_inode.is_file());
             self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);
             disk_inode.write_at(offset, buf, &self.block_device)
         });
@@ -179,6 +204,7 @@ impl Inode {
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
         self.modify_disk_inode(|disk_inode| {
+            assert!(disk_inode.is_file());
             let size = disk_inode.size;
             let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
             assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
