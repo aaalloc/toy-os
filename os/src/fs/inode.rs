@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 
 use crate::{drivers::block::BLOCK_DEVICE, memory::UserBuffer, utils::UPSafeCell};
 
-use super::File;
+use super::{Dirent, DirentType, File};
 
 lazy_static! {
     pub static ref ROOT_INODE: Arc<Inode> = {
@@ -111,6 +111,16 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+
+    fn getdents(&self) -> Vec<Dirent> {
+        let inner = self.inner.exclusive_access();
+        let vec = inner.inode.ls();
+        let mut v: Vec<Dirent> = Vec::new();
+        for name in vec {
+            v.push(Dirent::new(name, DirentType::File));
+        }
+        v
     }
 }
 

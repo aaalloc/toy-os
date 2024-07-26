@@ -2,6 +2,7 @@
 #![feature(linkage)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
+#![feature(slice_ptr_len)]
 
 #[macro_use]
 pub mod console;
@@ -61,6 +62,10 @@ pub fn open(path: &str, flags: OpenFlags) -> isize {
 }
 pub fn close(fd: usize) -> isize {
     sys_close(fd)
+}
+
+pub fn getdents(fd: usize, buf: *mut [u8]) -> isize {
+    sys_getdents(fd, buf, buf.len())
 }
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {

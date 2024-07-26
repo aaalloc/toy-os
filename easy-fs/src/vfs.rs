@@ -54,6 +54,14 @@ impl Inode {
         let fs = self.fs.lock();
         let mut block_id = self.block_id as u32;
         let mut block_offset = self.block_offset;
+        if path == "." {
+            return Some(Arc::new(Self::new(
+                block_id,
+                block_offset,
+                self.fs.clone(),
+                self.block_device.clone(),
+            )));
+        }
         for name in path.split("/").filter(|s| !s.is_empty()) {
             let inode_id = get_block_cache(block_id as usize, self.block_device.clone())
                 .lock()
@@ -74,6 +82,19 @@ impl Inode {
             self.fs.clone(),
             self.block_device.clone(),
         )))
+    }
+
+    pub fn get_name(&self) -> Option<String> {
+        let _fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| {
+            let mut dirent = DirEntry::empty();
+            assert_eq!(
+                disk_inode.read_at(0, dirent.as_bytes_mut(), &self.block_device,),
+                DIRENT_SZ,
+            );
+            Some(String::from(dirent.name()))
+        });
+        None
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {

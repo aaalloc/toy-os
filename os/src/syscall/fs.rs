@@ -1,7 +1,11 @@
 //! File and filesystem-related syscalls
+extern crate alloc;
 use crate::fs::inode::{open_file, OpenFlags};
+use crate::fs::{Dirent, DirentType};
 use crate::memory::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
+use alloc::vec::Vec;
+use log::debug;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
@@ -62,4 +66,45 @@ pub fn sys_close(fd: usize) -> isize {
     }
     inner.fd_table[fd].take();
     0
+}
+
+pub fn sys_getdents(fd: usize, buf: *mut u8, buflen: usize) -> isize {
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+
+    let buf = translated_byte_buffer(token, buf, buflen)[0].as_mut_ptr();
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = &inner.fd_table[fd] {
+        let file = file.clone();
+        drop(inner);
+        let dirs: Vec<Dirent> = file.getdents();
+        let mut offset = 0;
+        for dirent in &dirs {
+            let dirent_name = dirent.name.as_bytes();
+            let dirent_name_len = dirent_name.len();
+            if offset + dirent_name_len + 1 > buflen {
+                break;
+            }
+            let dirent_type = match dirent.type_ {
+                DirentType::File => 0,
+                DirentType::Directory => 1,
+            };
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    dirent_name.as_ptr(),
+                    buf.add(offset),
+                    dirent_name_len,
+                );
+                core::ptr::write(buf.add(offset + dirent_name_len), dirent_type);
+            }
+            offset += dirent_name_len + size_of::<DirentType>();
+        }
+        // return the number of bytes read
+        offset as isize
+    } else {
+        -1
+    }
 }

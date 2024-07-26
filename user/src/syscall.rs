@@ -4,6 +4,7 @@ use crate::{OpenFlags, TimeVal};
 
 const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
+const SYSCALL_GETDENTS: usize = 61;
 const SYSCALL_READ: usize = 63;
 const SYSCALL_WRITE: usize = 64;
 const SYSCALL_EXIT: usize = 93;
@@ -36,6 +37,10 @@ pub fn sys_open(path: &str, flags: OpenFlags) -> isize {
 
 pub fn sys_close(fd: usize) -> isize {
     syscall(SYSCALL_CLOSE, [fd, 0, 0])
+}
+
+pub fn sys_getdents(fd: usize, buf: *mut [u8], buflen: usize) -> isize {
+    syscall(SYSCALL_GETDENTS, [fd, buf as *mut u8 as usize, buflen])
 }
 
 pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {

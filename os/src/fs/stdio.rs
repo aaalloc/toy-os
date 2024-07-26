@@ -1,7 +1,9 @@
+extern crate alloc;
 use crate::sbi::console_getchar;
 use crate::{memory::UserBuffer, print, task::suspend_current_and_run_next};
+use alloc::vec::Vec;
 
-use super::File;
+use super::{Dirent, File};
 
 pub struct Stdin;
 
@@ -38,6 +40,10 @@ impl File for Stdin {
     fn writable(&self) -> bool {
         false
     }
+
+    fn getdents(&self) -> Vec<Dirent> {
+        Vec::new()
+    }
 }
 
 impl File for Stdout {
@@ -57,5 +63,9 @@ impl File for Stdout {
 
     fn writable(&self) -> bool {
         true
+    }
+
+    fn getdents(&self) -> Vec<Dirent> {
+        Vec::new()
     }
 }
