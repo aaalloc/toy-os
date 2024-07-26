@@ -20,6 +20,10 @@ pub struct Inode {
 }
 
 impl Inode {
+    pub fn get_block_id(&self) -> usize {
+        self.block_id
+    }
+
     pub fn new(
         block_id: u32,
         block_offset: usize,
@@ -89,6 +93,35 @@ impl Inode {
         None
     }
 
+    pub fn get_parent(&self) -> Option<Arc<Inode>> {
+        let _fs = self.fs.lock();
+        let mut block_id = self.block_id as u32;
+        let mut block_offset = self.block_offset;
+        let parent_inode = get_block_cache(block_id as usize, self.block_device.clone())
+            .lock()
+            .read(block_offset, |disk_inode: &DiskInode| {
+                if disk_inode.is_root() || disk_inode.is_file() {
+                    return None;
+                }
+                let mut dirent = DirEntry::empty();
+                assert_eq!(
+                    disk_inode.read_at(0, dirent.as_bytes_mut(), &self.block_device,),
+                    DIRENT_SZ,
+                );
+                Some(dirent.parent_inode_number() as u32)
+            });
+        if parent_inode.is_none() {
+            return None;
+        }
+        (block_id, block_offset) = _fs.get_disk_inode_pos(parent_inode.unwrap());
+        Some(Arc::new(Self::new(
+            block_id,
+            block_offset,
+            self.fs.clone(),
+            self.block_device.clone(),
+        )))
+    }
+
     fn create_inode(&self, name: &str, inode_type: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
@@ -119,7 +152,7 @@ impl Inode {
             // increase size
             self.increase_size(new_size as u32, root_inode, &mut fs);
             // write dirent
-            let dirent = DirEntry::new(name, new_inode_id);
+            let dirent = DirEntry::new(name, new_inode_id, root_inode.size as u32);
             root_inode.write_at(
                 file_count * DIRENT_SZ,
                 dirent.as_bytes(),

@@ -80,6 +80,14 @@ impl DiskInode {
         self.type_ == DiskInodeType::File
     }
 
+    pub fn is_root(&self) -> bool {
+        if self.type_ == DiskInodeType::Directory {
+            return self.direct[0] == 0;
+        } else {
+            return false;
+        }
+    }
+
     pub fn get_block_id(&self, inner_id: u32, block_device: &Arc<dyn BlockDevice>) -> u32 {
         let inner_id = inner_id as usize;
 
@@ -369,6 +377,7 @@ const NAME_LENGTH_LIMIT: usize = 27;
 pub struct DirEntry {
     name: [u8; NAME_LENGTH_LIMIT + 1],
     inode_number: u32,
+    parent_inode_number: u32,
 }
 /// Size of a directory entry
 pub const DIRENT_SZ: usize = 32;
@@ -379,15 +388,17 @@ impl DirEntry {
         Self {
             name: [0u8; NAME_LENGTH_LIMIT + 1],
             inode_number: 0,
+            parent_inode_number: 0,
         }
     }
     /// Crate a directory entry from name and inode number
-    pub fn new(name: &str, inode_number: u32) -> Self {
+    pub fn new(name: &str, inode_number: u32, parent_inode: u32) -> Self {
         let mut bytes = [0u8; NAME_LENGTH_LIMIT + 1];
         bytes[..name.len()].copy_from_slice(name.as_bytes());
         Self {
             name: bytes,
             inode_number,
+            parent_inode_number: parent_inode,
         }
     }
     /// Serialize into bytes
@@ -406,5 +417,9 @@ impl DirEntry {
     /// Get inode number of the entry
     pub fn inode_number(&self) -> u32 {
         self.inode_number
+    }
+
+    pub fn parent_inode_number(&self) -> u32 {
+        self.parent_inode_number
     }
 }

@@ -190,6 +190,10 @@ fn efs_dir_test() -> std::io::Result<()> {
     EasyFileSystem::create(block_file.clone(), 4096, 1);
     let efs = EasyFileSystem::open(block_file.clone());
     let root = Arc::new(EasyFileSystem::root_inode(&efs));
+
+    let root_parent = root.get_parent();
+    assert!(root_parent.is_none());
+
     root.create("f1");
     root.create("f2");
 
@@ -200,6 +204,9 @@ fn efs_dir_test() -> std::io::Result<()> {
 
     let f4 = d2.create("f4").unwrap();
     tree(&root, "/", 0);
+
+    let d2_parent = d1.get_parent().expect("d2 should have a parent");
+    assert_eq!(d2_parent.get_block_id(), d1.get_block_id());
 
     let f3_content = "3333333";
     let f4_content = "4444444444444444444";
