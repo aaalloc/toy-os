@@ -208,6 +208,9 @@ fn efs_dir_test() -> std::io::Result<()> {
     let d2_parent = d1.get_parent().expect("d2 should have a parent");
     assert_eq!(d2_parent.get_block_id(), d1.get_block_id());
 
+    let d2_root = d2.get_parent().unwrap().get_parent().unwrap();
+    assert_eq!(d2_root.get_block_id(), root.get_block_id());
+
     let f3_content = "3333333";
     let f4_content = "4444444444444444444";
     f3.write_at(0, f3_content.as_bytes());
