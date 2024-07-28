@@ -61,6 +61,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
     // 16MiB, at most 4095 files
     let efs = EasyFileSystem::create(block_file, 16 * 2048, 1);
     let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
+    let bin_inode = root_inode.create_dir("bin").unwrap();
     let apps: Vec<_> = read_dir(src_path)
         .unwrap()
         .into_iter()
@@ -76,7 +77,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
         let mut all_data: Vec<u8> = Vec::new();
         host_file.read_to_end(&mut all_data).unwrap();
         // create a file in easy-fs
-        let inode = root_inode.create(app.as_str()).unwrap();
+        let inode = bin_inode.create(app.as_str()).unwrap();
         // write data to easy-fs
         inode.write_at(0, all_data.as_slice());
     }
