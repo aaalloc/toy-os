@@ -3,6 +3,8 @@
 
 #[macro_use]
 extern crate user_lib;
+extern crate alloc;
+use alloc::ffi::CString;
 
 use user_lib::{close, getdents, open, OpenFlags};
 
@@ -11,15 +13,20 @@ pub fn main() -> i32 {
     let path = "/";
     let fd = open(path, OpenFlags::RDONLY);
     assert_ne!(fd, -1);
-    println!("open(\"{}\", OpenFlags::RDONLY) = {}", path, fd);
     assert!(fd > 0);
     let mut buf = [0u8; 1024];
     let nread = getdents(fd as usize, &mut buf);
-    for i in 0..nread {
-        print!("{}", buf[i as usize] as char);
-    }
-    println!("getdents({}, &mut buf) = {}", fd, nread);
     assert_ne!(nread, -1);
+    let nread = nread as usize;
+    let mut i = 0;
+    while i < nread {
+        // let t = buf[i];
+        let null = buf[i + 1..].iter().position(|&x| x == 0).unwrap();
+        let name = CString::new(&buf[i + 1..i + 1 + null]).unwrap();
+        print!("{} ", name.to_str().unwrap());
+        i += null + 2;
+    }
+    print!("\n");
     close(fd as usize);
     0
 }
