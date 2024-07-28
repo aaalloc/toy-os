@@ -87,6 +87,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn read_string(file: &Arc<Inode>) -> String {
     let mut read_buffer = [0u8; 512];
     let mut offset = 0usize;
@@ -102,6 +103,7 @@ fn read_string(file: &Arc<Inode>) -> String {
     read_str
 }
 
+#[allow(dead_code)]
 fn tree(inode: &Arc<Inode>, name: &str, depth: usize) {
     for _ in 0..depth {
         print!("  ");

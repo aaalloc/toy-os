@@ -29,5 +29,6 @@ impl Dirent {
 
 pub enum DirentType {
     File,
+    #[allow(dead_code)]
     Directory,
 }
