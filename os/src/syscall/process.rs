@@ -1,5 +1,5 @@
 use crate::fs::inode::{open_file, OpenFlags};
-use crate::memory::{translated_ref, translated_refmut, translated_str};
+use crate::memory::{translated_byte_buffer, translated_ref, translated_refmut, translated_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
     suspend_current_and_run_next,
@@ -14,6 +14,11 @@ use alloc::vec::Vec;
 pub struct TimeVal {
     pub tv_sec: usize,
     pub tv_usec: usize,
+}
+
+#[allow(unused)]
+pub fn sys_getcwd(buf: *mut u8, size: usize) -> isize {
+    0
 }
 
 pub fn sys_exit(exit_code: i32) -> ! {
