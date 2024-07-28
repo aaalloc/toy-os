@@ -2,7 +2,7 @@ pub mod inode;
 pub mod stdio;
 extern crate alloc;
 use crate::memory::UserBuffer;
-use alloc::string::String;
+use alloc::ffi::CString;
 use alloc::vec::Vec;
 
 pub trait File: Send + Sync {
@@ -17,13 +17,13 @@ pub trait File: Send + Sync {
 
 #[repr(C)]
 pub struct Dirent {
-    pub name: String,
     pub type_: DirentType,
+    pub name: CString,
 }
 
 impl Dirent {
-    pub fn new(name: String, type_: DirentType) -> Self {
-        Self { name, type_ }
+    pub fn new(name: CString, type_: DirentType) -> Self {
+        Self { type_, name }
     }
 }
 

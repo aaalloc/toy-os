@@ -1,4 +1,5 @@
 extern crate alloc;
+use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::bitflags;
@@ -118,7 +119,7 @@ impl File for OSInode {
         let vec = inner.inode.ls();
         let mut v: Vec<Dirent> = Vec::new();
         for name in vec {
-            v.push(Dirent::new(name, DirentType::File));
+            v.push(Dirent::new(CString::new(name).unwrap(), DirentType::File));
         }
         v
     }

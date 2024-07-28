@@ -5,7 +5,7 @@ use crate::fs::{Dirent, DirentType};
 use crate::memory::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 use alloc::vec::Vec;
-use log::debug;
+use log::{debug, info};
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
@@ -83,7 +83,7 @@ pub fn sys_getdents(fd: usize, buf: *mut u8, buflen: usize) -> isize {
         let dirs: Vec<Dirent> = file.getdents();
         let mut offset = 0;
         for dirent in &dirs {
-            let dirent_name = dirent.name.as_bytes();
+            let dirent_name = dirent.name.as_bytes_with_nul();
             let dirent_name_len = dirent_name.len();
             if offset + dirent_name_len + 1 > buflen {
                 break;
@@ -93,12 +93,9 @@ pub fn sys_getdents(fd: usize, buf: *mut u8, buflen: usize) -> isize {
                 DirentType::Directory => 1,
             };
             unsafe {
-                core::ptr::copy_nonoverlapping(
-                    dirent_name.as_ptr(),
-                    buf.add(offset),
-                    dirent_name_len,
-                );
-                core::ptr::write(buf.add(offset + dirent_name_len), dirent_type);
+                buf.add(offset).write(dirent_type);
+                buf.add(offset + 1)
+                    .copy_from(dirent_name.as_ptr(), dirent_name_len);
             }
             offset += dirent_name_len + size_of::<DirentType>();
         }
