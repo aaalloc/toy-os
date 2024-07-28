@@ -12,7 +12,6 @@ mod console;
 mod drivers;
 mod fs;
 mod lang_items;
-mod loader;
 mod logging;
 mod memory;
 mod sbi;
@@ -24,7 +23,6 @@ mod utils;
 use core::arch::global_asm;
 
 global_asm!(include_str!("entry.asm"));
-global_asm!(include_str!("link_app.S"));
 
 pub fn test_runner(tests: &[&dyn Fn()]) {
     println!("Running {} tests", tests.len());
@@ -56,7 +54,6 @@ pub fn kmain() -> ! {
     // trap::enable_interrupt();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
-    loader::list_apps();
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }
