@@ -98,7 +98,7 @@ pub fn exit(exit_code: i32) -> isize {
 pub fn yield_() -> isize {
     sys_yield()
 }
-pub fn get_time(time: &TimeVal) -> isize {
+pub fn get_time(time: *const TimeVal) -> isize {
     sys_get_time(time)
 }
 

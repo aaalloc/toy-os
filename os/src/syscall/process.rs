@@ -26,13 +26,12 @@ pub fn sys_yield() -> isize {
 
 pub fn sys_get_time(_ts: *mut TimeVal) -> isize {
     let t = get_time_ms();
-    // ts ptr is somehow optimized out by the compiler and is null :()
-    // unsafe {
-    //     *ts = TimeVal {
-    //         tv_sec: t / 1_000_000,
-    //         tv_usec: t % 1_000_000,
-    //     };
-    // }
+    // print pointer address
+    let translated_ts = translated_refmut(current_user_token(), _ts);
+    *translated_ts = TimeVal {
+        tv_sec: t / 1_000_000,
+        tv_usec: t % 1_000_000,
+    };
     t as isize
 }
 

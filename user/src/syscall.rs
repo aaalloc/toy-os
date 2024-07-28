@@ -62,7 +62,7 @@ pub fn sys_yield() -> isize {
     syscall(SYSCALL_YIELD, [0, 0, 0])
 }
 
-pub fn sys_get_time(time: &TimeVal) -> isize {
+pub fn sys_get_time(time: *const TimeVal) -> isize {
     syscall(SYSCALL_GET_TIME, [time as *const _ as usize, 0, 0])
 }
 

@@ -10,7 +10,7 @@ use user_lib::{close, getdents, open, OpenFlags};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let path = "/";
+    let path = ".";
     let fd = open(path, OpenFlags::RDONLY);
     assert_ne!(fd, -1);
     assert!(fd > 0);
