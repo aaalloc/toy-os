@@ -5,11 +5,12 @@ use super::pid::{pid_alloc, KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
 use crate::fs::File;
-use crate::memory::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::memory::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
 use crate::utils::UPSafeCell;
 extern crate alloc;
 use crate::fs::stdio::{Stdin, Stdout};
+use alloc::string::String;
 use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -84,32 +85,51 @@ impl TaskControlBlock {
         );
         task_control_block
     }
-    pub fn exec(&self, elf_data: &[u8]) {
+    pub fn exec(&self, elf_data: &[u8], args: Vec<String>) {
         // memory_set with elf program headers/trampoline/trap context/user stack
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let (memory_set, mut user_sp, entry_point) = MemorySet::from_elf(elf_data);
         let trap_cx_ppn = memory_set
             .translate(VirtAddr::from(TRAP_CONTEXT).into())
             .unwrap()
             .ppn();
+        user_sp -= (args.len() + 1) * core::mem::size_of::<usize>();
+        let argv_base = user_sp;
+        let mut argv: Vec<_> = (0..=args.len())
+            .map(|arg| {
+                translated_refmut(
+                    memory_set.token(),
+                    (argv_base + arg * core::mem::size_of::<usize>()) as *mut usize,
+                )
+            })
+            .collect();
+        *argv[args.len()] = 0;
+        for i in 0..args.len() {
+            user_sp -= args[i].len() + 1;
+            *argv[i] = user_sp;
+            let mut p = user_sp;
+            for c in args[i].as_bytes() {
+                *translated_refmut(memory_set.token(), p as *mut u8) = *c;
+                p += 1;
+            }
+            *translated_refmut(memory_set.token(), p as *mut u8) = 0;
+        }
 
-        // **** access inner exclusively
         let mut inner = self.inner_exclusive_access();
         // substitute memory_set
         inner.memory_set = memory_set;
         // update trap_cx ppn
         inner.trap_cx_ppn = trap_cx_ppn;
-        // initialize base_size
-        inner.base_size = user_sp;
         // initialize trap_cx
-        let trap_cx = inner.get_trap_cx();
-        *trap_cx = TrapContext::app_init_context(
+        let mut trap_cx = TrapContext::app_init_context(
             entry_point,
             user_sp,
             KERNEL_SPACE.exclusive_access().token(),
             self.kernel_stack.get_top(),
             trap_handler as usize,
         );
-        // **** release inner automatically
+        trap_cx.x[10] = args.len();
+        trap_cx.x[11] = argv_base;
+        *inner.get_trap_cx() = trap_cx;
     }
     pub fn fork(self: &Arc<Self>) -> Arc<Self> {
         // ---- access parent PCB exclusively
@@ -152,13 +172,11 @@ impl TaskControlBlock {
         // add child
         parent_inner.children.push(task_control_block.clone());
         // modify kernel_sp in trap_cx
-        // **** access children PCB exclusively
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
         trap_cx.kernel_sp = kernel_stack_top;
         // return
         task_control_block
         // ---- release parent PCB automatically
-        // **** release children PCB automatically
     }
 }
 

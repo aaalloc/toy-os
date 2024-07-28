@@ -46,7 +46,6 @@ pub fn kmain() -> ! {
     #[cfg(test)]
     test_main();
 
-    println!("[kernel] Hello, world!");
     memory::init();
     memory::remap_test();
     task::add_initproc();

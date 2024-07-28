@@ -11,8 +11,9 @@ const LF: u8 = 0x0au8;
 const CR: u8 = 0x0du8;
 const DL: u8 = 0x7fu8;
 const BS: u8 = 0x08u8;
-
+use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use user_lib::console::getchar;
 use user_lib::{exec, fork, waitpid};
 
@@ -27,11 +28,16 @@ pub fn main() -> i32 {
             LF | CR => {
                 println!("");
                 if !line.is_empty() {
-                    line.push('\0');
                     let pid = fork();
                     if pid == 0 {
-                        // child process
-                        if exec(line.as_str()) == -1 {
+                        let base = line
+                            .split_whitespace()
+                            .map(|s| format!("{}\0", s))
+                            .collect::<Vec<String>>();
+                        let mut args: Vec<*const u8> = base.iter().map(|s| s.as_ptr()).collect();
+                        args.push(core::ptr::null());
+                        let command = base[0].as_str();
+                        if exec(command, args.as_slice()) == -1 {
                             println!("Error when executing!");
                             return -4;
                         }

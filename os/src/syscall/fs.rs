@@ -5,7 +5,6 @@ use crate::fs::{Dirent, DirentType};
 use crate::memory::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 use alloc::vec::Vec;
-use log::{debug, info};
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
