@@ -204,14 +204,19 @@ fn efs_dir_test() -> std::io::Result<()> {
 
     let f3 = d1.create("f3").unwrap();
     let d2 = d1.create_dir("d2").unwrap();
-
     let f4 = d2.create("f4").unwrap();
+    // let f4 = d2.create_dir("d2d2").unwrap();
+    // a file/folder has to be created in a directory to make get_parent() work
+    assert_eq!(d2.get_parent().unwrap().get_block_id(), d1.get_block_id());
+    assert_eq!(d2.get_name().unwrap(), "d2");
     tree(&root, "/", 0);
 
     let d2_parent = d1.get_parent().expect("d2 should have a parent");
     assert_eq!(d2_parent.get_block_id(), d1.get_block_id());
 
-    let d2_root = d2.get_parent().unwrap().get_parent().unwrap();
+    let d2_parent_d1 = d2.get_parent().unwrap();
+    assert_eq!(d2_parent_d1.get_block_id(), d1.get_block_id());
+    let d2_root = d2_parent_d1.get_parent().unwrap();
     assert_eq!(d2_root.get_block_id(), root.get_block_id());
 
     let f3_content = "3333333";

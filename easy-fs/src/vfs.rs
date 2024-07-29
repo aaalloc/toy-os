@@ -85,16 +85,13 @@ impl Inode {
     }
 
     pub fn get_name(&self) -> Option<String> {
-        let _fs = self.fs.lock();
-        self.read_disk_inode(|disk_inode| {
-            let mut dirent = DirEntry::empty();
-            assert_eq!(
-                disk_inode.read_at(0, dirent.as_bytes_mut(), &self.block_device,),
-                DIRENT_SZ,
-            );
-            Some(String::from(dirent.name()))
-        });
-        None
+        let parent_inode = self.get_parent().unwrap();
+        let mut dirent = DirEntry::empty();
+        assert_eq!(
+            parent_inode.read_at(self.block_offset, dirent.as_bytes_mut()),
+            DIRENT_SZ,
+        );
+        Some(String::from(dirent.name()))
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
