@@ -1,5 +1,5 @@
 use crate::fs::inode::{open_file, OpenFlags};
-use crate::memory::{translated_byte_buffer, translated_ref, translated_refmut, translated_str};
+use crate::memory::{translated_ref, translated_refmut, translated_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
     suspend_current_and_run_next,
@@ -33,7 +33,6 @@ pub fn sys_yield() -> isize {
 
 pub fn sys_get_time(_ts: *mut TimeVal) -> isize {
     let t = get_time_ms();
-    // print pointer address
     let translated_ts = translated_refmut(current_user_token(), _ts);
     *translated_ts = TimeVal {
         tv_sec: t / 1_000_000,
