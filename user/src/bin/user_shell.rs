@@ -15,12 +15,18 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use user_lib::console::getchar;
-use user_lib::{exec, fork, waitpid};
+use user_lib::{exec, fork, getcwd, waitpid};
 
 #[no_mangle]
 pub fn main() -> i32 {
     println!("Rust user shell");
     let mut line: String = String::new();
+    let mut cwd_buf = [0u8; 256];
+    let res = getcwd(&mut cwd_buf, 256);
+    println!(
+        "Current working directory: {:?}",
+        core::str::from_utf8(&cwd_buf[..res as usize])
+    );
     print!(">> ");
     loop {
         let c = getchar();

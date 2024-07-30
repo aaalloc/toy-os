@@ -89,7 +89,6 @@ impl Inode {
             self.block_device.clone(),
         )))
     }
-
     pub fn is_root(&self) -> bool {
         self.block_id == 2 && self.block_offset == 0
     }
@@ -102,6 +101,10 @@ impl Inode {
                 self.find_inode_id(".", disk_inode)
             }
         })
+    }
+
+    pub fn get_name(&self) -> &str {
+        todo!()
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
