@@ -63,6 +63,10 @@ impl OSInode {
         }
     }
 
+    pub fn get_path(&self) -> CString {
+        CString::new("not_implemented").unwrap()
+    }
+
     pub fn read_all(&self) -> Vec<u8> {
         let mut inner = self.inner.exclusive_access();
         let mut buffer = [0u8; 512];
@@ -127,6 +131,7 @@ impl File for OSInode {
 
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     let (readable, writable) = flags.read_write();
+    // TODO: change ROOT_INODE to current process inode
     if flags.contains(OpenFlags::CREATE) {
         if let Some(inode) = ROOT_INODE.find(name) {
             inode.clear();

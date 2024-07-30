@@ -4,6 +4,7 @@ use core::cell::RefMut;
 use super::pid::{pid_alloc, KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
+use crate::fs::inode::OSInode;
 use crate::fs::File;
 use crate::memory::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
@@ -19,6 +20,7 @@ use alloc::vec::Vec;
 pub struct TaskControlBlock {
     pub pid: PidHandle,
     pub kernel_stack: KernelStack,
+    pub cwd: Arc<OSInode>,
     inner: UPSafeCell<TaskControlBlockInner>,
 }
 
@@ -41,7 +43,11 @@ impl TaskControlBlock {
     pub fn getpid(&self) -> usize {
         self.pid.0
     }
-    pub fn new(elf_data: &[u8]) -> Self {
+    pub fn getcwd(&self) -> alloc::ffi::CString {
+        self.cwd.get_path()
+    }
+
+    pub fn new(elf_data: &[u8], cwd: Arc<OSInode>) -> Self {
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
         let trap_cx_ppn = memory_set
@@ -56,6 +62,7 @@ impl TaskControlBlock {
         let task_control_block = Self {
             pid: pid_handle,
             kernel_stack,
+            cwd,
             inner: unsafe {
                 UPSafeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,
@@ -155,6 +162,7 @@ impl TaskControlBlock {
         let task_control_block = Arc::new(TaskControlBlock {
             pid: pid_handle,
             kernel_stack,
+            cwd: self.cwd.clone(),
             inner: unsafe {
                 UPSafeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,

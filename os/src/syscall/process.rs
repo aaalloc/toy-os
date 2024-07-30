@@ -1,5 +1,5 @@
 use crate::fs::inode::{open_file, OpenFlags};
-use crate::memory::{translated_ref, translated_refmut, translated_str};
+use crate::memory::{translated_byte_buffer, translated_ref, translated_refmut, translated_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
     suspend_current_and_run_next,
@@ -9,6 +9,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use log::info;
 
 #[repr(C)]
 pub struct TimeVal {
@@ -16,9 +17,20 @@ pub struct TimeVal {
     pub tv_usec: usize,
 }
 
-#[allow(unused)]
 pub fn sys_getcwd(buf: *mut u8, size: usize) -> isize {
-    0
+    let task = current_task().unwrap();
+    let cwd = task.getcwd();
+    let token = current_user_token();
+    let buf = translated_byte_buffer(token, buf, size)[0].as_mut_ptr();
+
+    let len = cwd.as_bytes_with_nul().len();
+    let size = size.min(len);
+    unsafe {
+        core::ptr::copy(cwd.as_ptr(), buf as *mut i8, size);
+    }
+
+    info!("getcwd: {:?}", cwd);
+    len as isize
 }
 
 pub fn sys_exit(exit_code: i32) -> ! {
