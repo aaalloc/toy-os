@@ -19,6 +19,12 @@ pub struct Inode {
     block_device: Arc<dyn BlockDevice>,
 }
 
+impl PartialEq for Inode {
+    fn eq(&self, other: &Self) -> bool {
+        self.block_id == other.block_id && self.block_offset == other.block_offset
+    }
+}
+
 impl Inode {
     pub fn get_block_id(&self) -> usize {
         self.block_id
@@ -112,26 +118,18 @@ impl Inode {
     }
 
     pub fn get_parent(&self) -> Option<Arc<Inode>> {
-        let _fs = self.fs.lock();
-        let mut block_id = self.block_id as u32;
-        let mut block_offset = self.block_offset;
-        let parent_inode = get_block_cache(block_id as usize, self.block_device.clone())
-            .lock()
-            .read(block_offset, |disk_inode: &DiskInode| {
-                if disk_inode.is_root() || disk_inode.is_file() {
-                    return None;
-                }
-                let mut dirent = DirEntry::empty();
-                assert_eq!(
-                    disk_inode.read_at(0, dirent.as_bytes_mut(), &self.block_device,),
-                    DIRENT_SZ,
-                );
-                Some(dirent.parent_inode_number() as u32)
-            });
-        if parent_inode.is_none() {
+        // simply read .. folder
+        let fs = self.fs.lock();
+        let parent_inode_id = self.read_disk_inode(|disk_inode| {
+            if disk_inode.is_root() || disk_inode.is_file() {
+                return None;
+            }
+            self.find_inode_id("..", disk_inode)
+        });
+        if parent_inode_id.is_none() {
             return None;
         }
-        (block_id, block_offset) = _fs.get_disk_inode_pos(parent_inode.unwrap());
+        let (block_id, block_offset) = fs.get_disk_inode_pos(parent_inode_id.unwrap());
         Some(Arc::new(Self::new(
             block_id,
             block_offset,
@@ -170,23 +168,59 @@ impl Inode {
             // increase size
             self.increase_size(new_size as u32, root_inode, &mut fs);
             // write dirent
-            let dirent = DirEntry::new(name, new_inode_id, root_inode.size as u32);
+            let dirent = DirEntry::new(name, new_inode_id);
             root_inode.write_at(
                 file_count * DIRENT_SZ,
                 dirent.as_bytes(),
                 &self.block_device,
             );
         });
-
         let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
-        // return inode
         Some(Arc::new(Self::new(
             block_id,
             block_offset,
             self.fs.clone(),
             self.block_device.clone(),
         )))
-        // release efs lock automatically by compiler
+    }
+
+    /// Create a folder that has inode pointing to current folder
+    fn create_curr_dir_link(&self, inode: u32) -> Option<Arc<Inode>> {
+        let mut fs = self.fs.lock();
+        // initialize inode
+        let (new_inode_block_id, new_inode_block_offset) = fs.get_disk_inode_pos(inode);
+        get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
+            .lock()
+            .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
+                new_inode.initialize(DiskInodeType::Directory);
+            });
+        self.modify_disk_inode(|root_inode| {
+            // append file in the dirent
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            let new_size = (file_count + 1) * DIRENT_SZ;
+            // increase size
+            self.increase_size(new_size as u32, root_inode, &mut fs);
+            // write dirent
+            let dirent = DirEntry::new(".", inode);
+            root_inode.write_at(
+                file_count * DIRENT_SZ,
+                dirent.as_bytes(),
+                &self.block_device,
+            );
+        });
+        let (block_id, block_offset) = fs.get_disk_inode_pos(inode);
+        Some(Arc::new(Self::new(
+            block_id,
+            block_offset,
+            self.fs.clone(),
+            self.block_device.clone(),
+        )))
+    }
+
+    /// Create a folder that has inode pointing to parent folder
+    #[allow(unused)]
+    fn create_parent_dir_link(&self) -> Option<Arc<Inode>> {
+        todo!()
     }
 
     /// Create a file in current inode
@@ -196,7 +230,13 @@ impl Inode {
 
     /// Create a directory in current inode
     pub fn create_dir(&self, name: &str) -> Option<Arc<Inode>> {
-        self.create_inode(name, DiskInodeType::Directory)
+        let inode = self.create_inode(name, DiskInodeType::Directory);
+        if let Some(inode) = &inode {
+            let inode_id = self.read_disk_inode(|disk_inode| self.find_inode_id(name, disk_inode));
+            inode.create_curr_dir_link(inode_id.unwrap());
+            // inode.create_parent_dir_link();
+        }
+        inode
     }
 
     fn increase_size(
