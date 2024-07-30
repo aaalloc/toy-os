@@ -80,14 +80,6 @@ impl DiskInode {
         self.type_ == DiskInodeType::File
     }
 
-    pub fn is_root(&self) -> bool {
-        if self.type_ == DiskInodeType::Directory {
-            return self.direct[0] == 0;
-        } else {
-            return false;
-        }
-    }
-
     pub fn get_block_id(&self, inner_id: u32, block_device: &Arc<dyn BlockDevice>) -> u32 {
         let inner_id = inner_id as usize;
 

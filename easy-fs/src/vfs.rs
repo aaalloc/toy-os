@@ -90,14 +90,18 @@ impl Inode {
         )))
     }
 
-    pub fn get_name(&self) -> Option<String> {
-        let parent_inode = self.get_parent().unwrap();
-        let mut dirent = DirEntry::empty();
-        assert_eq!(
-            parent_inode.read_at(self.block_offset, dirent.as_bytes_mut()),
-            DIRENT_SZ,
-        );
-        Some(String::from(dirent.name()))
+    pub fn is_root(&self) -> bool {
+        self.block_id == 2 && self.block_offset == 0
+    }
+
+    pub fn get_current_inode_id(&self) -> Option<u32> {
+        self.read_disk_inode(|disk_inode| {
+            if self.is_root() {
+                Some(0)
+            } else {
+                self.find_inode_id(".", disk_inode)
+            }
+        })
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
@@ -121,7 +125,7 @@ impl Inode {
         // simply read .. folder
         let fs = self.fs.lock();
         let parent_inode_id = self.read_disk_inode(|disk_inode| {
-            if disk_inode.is_root() || disk_inode.is_file() {
+            if (self.block_id == 2 && self.block_offset == 0) || disk_inode.is_file() {
                 return None;
             }
             self.find_inode_id("..", disk_inode)
@@ -185,15 +189,12 @@ impl Inode {
     }
 
     /// Create a folder that has inode pointing to current folder
-    fn create_curr_dir_link(&self, inode: u32) -> Option<Arc<Inode>> {
+    pub fn create_dir_link(&self, path: &str, inode: u32) -> Option<Arc<Inode>> {
+        if path != "." && path != ".." {
+            panic!("path should be . or ..");
+        }
         let mut fs = self.fs.lock();
-        // initialize inode
-        let (new_inode_block_id, new_inode_block_offset) = fs.get_disk_inode_pos(inode);
-        get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
-            .lock()
-            .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
-                new_inode.initialize(DiskInodeType::Directory);
-            });
+
         self.modify_disk_inode(|root_inode| {
             // append file in the dirent
             let file_count = (root_inode.size as usize) / DIRENT_SZ;
@@ -201,7 +202,7 @@ impl Inode {
             // increase size
             self.increase_size(new_size as u32, root_inode, &mut fs);
             // write dirent
-            let dirent = DirEntry::new(".", inode);
+            let dirent = DirEntry::new(path, inode);
             root_inode.write_at(
                 file_count * DIRENT_SZ,
                 dirent.as_bytes(),
@@ -233,8 +234,8 @@ impl Inode {
         let inode = self.create_inode(name, DiskInodeType::Directory);
         if let Some(inode) = &inode {
             let inode_id = self.read_disk_inode(|disk_inode| self.find_inode_id(name, disk_inode));
-            inode.create_curr_dir_link(inode_id.unwrap());
-            // inode.create_parent_dir_link();
+            inode.create_dir_link(".", inode_id.unwrap());
+            inode.create_dir_link("..", self.get_current_inode_id().unwrap());
         }
         inode
     }
