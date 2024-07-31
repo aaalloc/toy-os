@@ -1,5 +1,6 @@
 extern crate alloc;
 use alloc::string::String;
+use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
@@ -103,8 +104,56 @@ impl Inode {
         })
     }
 
-    pub fn get_name(&self) -> &str {
-        todo!()
+    pub fn get_name(&self) -> Option<String> {
+        // get parent inode, iterate over files and if one matchs current inode return name
+        // Note: for folder
+        let parent_inode = self.read_disk_inode(|disk_inode| {
+            if self.is_root() || disk_inode.is_file() {
+                return None;
+            }
+            self.find_inode_id("..", disk_inode)
+        });
+        if parent_inode.is_none() {
+            if self.is_root() {
+                return Some("/".to_string());
+            } else {
+                return None;
+            }
+        }
+        self.get_parent().unwrap().read_disk_inode(|disk_inode| {
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            for i in 0..file_count {
+                assert_eq!(
+                    disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                    DIRENT_SZ,
+                );
+                if dirent.name() == "." {
+                    continue;
+                }
+                if dirent.inode_number() == self.get_current_inode_id().unwrap() {
+                    return Some(ToString::to_string(&dirent.name()));
+                }
+            }
+            None
+        })
+    }
+
+    pub fn helper_cwd(&self, path: String, inode: &Inode) -> String {
+        // recursive function to get the path of inode
+        // call self.get_parent() and concat the name of the inode
+        if inode.is_root() {
+            return alloc::format!("/{}", path);
+        }
+        let parent = inode.get_parent().expect("parent should exist");
+        // deadlock after second call
+        let name = inode.get_name().expect("name should exist");
+        self.helper_cwd(alloc::format!("{}/{}", name, path), &parent)
+    }
+
+    pub fn cwd(&self) -> String {
+        // get the path of current inode
+        self.helper_cwd("".to_string(), self)
     }
 
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
@@ -128,7 +177,7 @@ impl Inode {
         // simply read .. folder
         let fs = self.fs.lock();
         let parent_inode_id = self.read_disk_inode(|disk_inode| {
-            if (self.block_id == 2 && self.block_offset == 0) || disk_inode.is_file() {
+            if self.is_root() || disk_inode.is_file() {
                 return None;
             }
             self.find_inode_id("..", disk_inode)
