@@ -219,6 +219,11 @@ fn efs_dir_test() -> std::io::Result<()> {
     let cwd_d2 = d2.cwd();
     assert_eq!(cwd_d2, "/d1/d2");
 
+    assert_eq!(
+        d2.find("../..").unwrap().get_block_id(),
+        root.get_block_id()
+    );
+
     let d2_parent = d1.get_parent().expect("d2 should have a parent");
     assert_eq!(d2_parent.get_block_id(), d1.get_block_id());
 

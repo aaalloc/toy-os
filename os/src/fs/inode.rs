@@ -6,7 +6,9 @@ use bitflags::bitflags;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
 
-use crate::{drivers::block::BLOCK_DEVICE, memory::UserBuffer, utils::UPSafeCell};
+use crate::{
+    drivers::block::BLOCK_DEVICE, memory::UserBuffer, task::current_task, utils::UPSafeCell,
+};
 
 use super::{Dirent, DirentType, File};
 
@@ -147,18 +149,29 @@ impl File for OSInode {
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     let (readable, writable) = flags.read_write();
     // TODO: change ROOT_INODE to current process inode
+    let task = current_task();
+    let current_os_inode;
+    let current_inode;
+    // case where we want to first process
+    if task.is_none() {
+        current_inode = ROOT_INODE.clone();
+    } else {
+        current_os_inode = task.unwrap().get_cwd_inode();
+        current_inode = current_os_inode.inner.exclusive_access().inode.clone();
+    }
+
     if flags.contains(OpenFlags::CREATE) {
-        if let Some(inode) = ROOT_INODE.find(name) {
+        if let Some(inode) = current_inode.find(name) {
             inode.clear();
             Some(Arc::new(OSInode::new(readable, writable, inode)))
         } else {
             // create file
-            ROOT_INODE
+            current_inode
                 .create(name)
                 .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
         }
     } else {
-        ROOT_INODE.find(name).map(|inode| {
+        current_inode.find(name).map(|inode| {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
             }

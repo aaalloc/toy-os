@@ -114,6 +114,10 @@ pub fn getcwd(buf: *mut [u8], size: usize) -> isize {
     sys_getcwd(buf, size)
 }
 
+pub fn chdir(path: &str) -> isize {
+    sys_chdir(path)
+}
+
 pub fn wait(exit_code: &mut i32) -> isize {
     loop {
         match sys_waitpid(-1, exit_code as *mut _) {

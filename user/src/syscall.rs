@@ -3,6 +3,7 @@ use core::arch::asm;
 use crate::{OpenFlags, TimeVal};
 
 const SYSCALL_GETCWD: usize = 17;
+const SYSCALL_CHDIR: usize = 49;
 const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
 const SYSCALL_GETDENTS: usize = 61;
@@ -87,4 +88,8 @@ pub fn sys_waitpid(pid: isize, exit_code: *mut i32) -> isize {
 
 pub fn sys_getcwd(buf: *mut [u8], size: usize) -> isize {
     syscall(SYSCALL_GETCWD, [buf as *mut u8 as usize, size, 0])
+}
+
+pub fn sys_chdir(path: &str) -> isize {
+    syscall(SYSCALL_CHDIR, [path.as_ptr() as usize, 0, 0])
 }

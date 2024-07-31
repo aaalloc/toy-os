@@ -47,6 +47,10 @@ impl TaskControlBlock {
         self.cwd.get_path()
     }
 
+    pub fn get_cwd_inode(&self) -> Arc<OSInode> {
+        self.cwd.clone()
+    }
+
     pub fn chdir(&self, path: &str) -> bool {
         self.cwd.chdir(path)
     }
