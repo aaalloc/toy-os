@@ -160,6 +160,9 @@ impl Inode {
 
     pub fn cwd(&self) -> String {
         // get the path of current inode
+        if self.is_root() {
+            return "/".to_string();
+        }
         self.helper_cwd("".to_string(), self)
     }
 

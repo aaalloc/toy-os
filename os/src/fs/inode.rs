@@ -54,6 +54,10 @@ pub struct OSInodeInner {
     inode: Arc<Inode>,
 }
 
+pub fn root_os_inode() -> Arc<OSInode> {
+    Arc::new(OSInode::new(true, true, ROOT_INODE.clone()))
+}
+
 impl OSInode {
     pub fn new(readable: bool, writable: bool, inode: Arc<Inode>) -> Self {
         Self {
@@ -64,7 +68,8 @@ impl OSInode {
     }
 
     pub fn get_path(&self) -> CString {
-        CString::new("not_implemented").unwrap()
+        let inner = self.inner.exclusive_access();
+        CString::new(inner.inode.cwd()).unwrap()
     }
 
     pub fn read_all(&self) -> Vec<u8> {

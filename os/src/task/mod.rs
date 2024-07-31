@@ -23,6 +23,7 @@ mod switch;
 mod task;
 extern crate alloc;
 use crate::fs::inode::open_file;
+use crate::fs::inode::root_os_inode;
 use crate::fs::inode::OpenFlags;
 use crate::sbi::shutdown;
 use alloc::sync::Arc;
@@ -114,7 +115,7 @@ lazy_static! {
     pub static ref INITPROC: Arc<TaskControlBlock> = Arc::new({
         let inode = open_file("/bin/initproc", OpenFlags::RDONLY).unwrap();
         let v = inode.read_all();
-        TaskControlBlock::new(v.as_slice(), inode)
+        TaskControlBlock::new(v.as_slice(), root_os_inode())
     });
 }
 ///Add init process to the manager

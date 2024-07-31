@@ -12,21 +12,24 @@ const CR: u8 = 0x0du8;
 const DL: u8 = 0x7fu8;
 const BS: u8 = 0x08u8;
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use user_lib::console::getchar;
 use user_lib::{exec, fork, getcwd, waitpid};
 
-#[no_mangle]
-pub fn main() -> i32 {
-    println!("Rust user shell");
-    let mut line: String = String::new();
+pub fn get_current_dir() -> String {
     let mut cwd_buf = [0u8; 256];
     let res = getcwd(&mut cwd_buf, 256);
-    println!(
-        "Current working directory: {:?}",
-        core::str::from_utf8(&cwd_buf[..res as usize])
-    );
+    assert!(res > 0);
+    core::str::from_utf8(&cwd_buf[..res as usize])
+        .unwrap()
+        .to_string()
+}
+
+#[no_mangle]
+pub fn main() -> i32 {
+    let mut line: String = String::new();
+    print!("{} ", get_current_dir());
     print!(">> ");
     loop {
         let c = getchar();

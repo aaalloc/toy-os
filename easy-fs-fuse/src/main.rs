@@ -200,11 +200,14 @@ fn efs_dir_test() -> std::io::Result<()> {
     let root_parent = root.get_parent();
     assert!(root_parent.is_none());
     assert_eq!(root.get_name().unwrap(), "/");
+    assert_eq!(root.cwd(), "/");
 
     root.create("f1");
     root.create("f2");
 
     let d1 = root.create_dir("d1").unwrap();
+    assert_eq!(d1.cwd(), "/d1");
+
     let f3 = d1.create("f3").unwrap();
     let d2 = d1.create_dir("d2").unwrap();
     let f4 = d2.create("f4").unwrap();
