@@ -3,6 +3,7 @@ use process::*;
 
 use log::debug;
 const SYSCALL_GETCWD: usize = 17;
+const SYSCALL_CHDIR: usize = 49;
 const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
 const SYSCALL_GETDENTS: usize = 61;
@@ -26,6 +27,7 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     );
     match id {
         SYSCALL_GETCWD => sys_getcwd(args[0] as *mut u8, args[1]),
+        SYSCALL_CHDIR => sys_chdir(args[0] as *const u8),
         SYSCALL_OPEN => sys_open(args[0] as *const u8, args[1] as u32),
         SYSCALL_CLOSE => sys_close(args[0]),
         SYSCALL_GETDENTS => sys_getdents(args[0], args[1] as *mut u8, args[2]),

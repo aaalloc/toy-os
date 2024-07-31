@@ -72,6 +72,16 @@ impl OSInode {
         CString::new(inner.inode.cwd()).unwrap()
     }
 
+    pub fn chdir(&self, path: &str) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        if let Some(inode) = inner.inode.find(path) {
+            inner.inode = inode;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn read_all(&self) -> Vec<u8> {
         let mut inner = self.inner.exclusive_access();
         let mut buffer = [0u8; 512];

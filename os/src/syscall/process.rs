@@ -33,6 +33,17 @@ pub fn sys_getcwd(buf: *mut u8, size: usize) -> isize {
     len as isize
 }
 
+pub fn sys_chdir(path: *const u8) -> isize {
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    let task = current_task().unwrap();
+    if task.chdir(path.as_str()) {
+        0
+    } else {
+        -1
+    }
+}
+
 pub fn sys_exit(exit_code: i32) -> ! {
     exit_current_and_run_next(exit_code);
     panic!("Unreachable in sys_exit!");

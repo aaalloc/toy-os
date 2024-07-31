@@ -47,6 +47,10 @@ impl TaskControlBlock {
         self.cwd.get_path()
     }
 
+    pub fn chdir(&self, path: &str) -> bool {
+        self.cwd.chdir(path)
+    }
+
     pub fn new(elf_data: &[u8], cwd: Arc<OSInode>) -> Self {
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
