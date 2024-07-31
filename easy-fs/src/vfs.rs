@@ -120,6 +120,7 @@ impl Inode {
                 return None;
             }
         }
+        let current_inode_id = self.get_current_inode_id().unwrap();
         self.get_parent().unwrap().read_disk_inode(|disk_inode| {
             let file_count = (disk_inode.size as usize) / DIRENT_SZ;
             let mut dirent = DirEntry::empty();
@@ -131,7 +132,7 @@ impl Inode {
                 if dirent.name() == "." {
                     continue;
                 }
-                if dirent.inode_number() == self.get_current_inode_id().unwrap() {
+                if dirent.inode_number() == current_inode_id {
                     return Some(ToString::to_string(&dirent.name()));
                 }
             }
@@ -146,9 +147,15 @@ impl Inode {
             return alloc::format!("/{}", path);
         }
         let parent = inode.get_parent().expect("parent should exist");
-        // deadlock after second call
         let name = inode.get_name().expect("name should exist");
-        self.helper_cwd(alloc::format!("{}/{}", name, path), &parent)
+        self.helper_cwd(
+            if path == "" {
+                name
+            } else {
+                alloc::format!("{}/{}", name, path)
+            },
+            &parent,
+        )
     }
 
     pub fn cwd(&self) -> String {

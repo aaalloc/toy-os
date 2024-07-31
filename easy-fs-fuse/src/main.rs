@@ -213,8 +213,8 @@ fn efs_dir_test() -> std::io::Result<()> {
     tree(&root, "/", 0);
 
     // currently not supported
-    // let cwd_d2 = d2.cwd();
-    // assert_eq!(cwd_d2, "/d1/d2");
+    let cwd_d2 = d2.cwd();
+    assert_eq!(cwd_d2, "/d1/d2");
 
     let d2_parent = d1.get_parent().expect("d2 should have a parent");
     assert_eq!(d2_parent.get_block_id(), d1.get_block_id());
