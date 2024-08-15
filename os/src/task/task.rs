@@ -1,6 +1,3 @@
-//! Types related to task management
-use core::cell::RefMut;
-
 use super::pid::{pid_alloc, KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
@@ -8,7 +5,7 @@ use crate::fs::inode::OSInode;
 use crate::fs::File;
 use crate::memory::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
-use crate::utils::UPSafeCell;
+use crate::utils::{UPIntrFreeCell, UPIntrRefMut};
 extern crate alloc;
 use crate::fs::stdio::{Stdin, Stdout};
 use alloc::string::String;
@@ -21,7 +18,7 @@ pub struct TaskControlBlock {
     pub pid: PidHandle,
     pub kernel_stack: KernelStack,
     pub cwd: Arc<OSInode>,
-    inner: UPSafeCell<TaskControlBlockInner>,
+    inner: UPIntrFreeCell<TaskControlBlockInner>,
 }
 
 pub struct TaskControlBlockInner {
@@ -37,7 +34,7 @@ pub struct TaskControlBlockInner {
 }
 
 impl TaskControlBlock {
-    pub fn inner_exclusive_access(&self) -> RefMut<'_, TaskControlBlockInner> {
+    pub fn inner_exclusive_access(&self) -> UPIntrRefMut<'_, TaskControlBlockInner> {
         self.inner.exclusive_access()
     }
     pub fn getpid(&self) -> usize {
@@ -72,7 +69,7 @@ impl TaskControlBlock {
             kernel_stack,
             cwd,
             inner: unsafe {
-                UPSafeCell::new(TaskControlBlockInner {
+                UPIntrFreeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,
                     base_size: user_sp,
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
@@ -172,7 +169,7 @@ impl TaskControlBlock {
             kernel_stack,
             cwd: self.cwd.clone(),
             inner: unsafe {
-                UPSafeCell::new(TaskControlBlockInner {
+                UPIntrFreeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,
                     base_size: parent_inner.base_size,
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),

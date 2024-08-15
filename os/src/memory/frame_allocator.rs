@@ -4,7 +4,7 @@
 use crate::config::MEMORY_END;
 use crate::memory::address::{PhysAddr, PhysPageNum};
 use crate::println;
-use crate::utils::UPSafeCell;
+use crate::utils::UPIntrFreeCell;
 extern crate alloc;
 use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};
@@ -90,8 +90,8 @@ type FrameAllocatorImpl = StackFrameAllocator;
 
 lazy_static! {
     /// frame allocator instance through lazy_static!
-    pub static ref FRAME_ALLOCATOR: UPSafeCell<FrameAllocatorImpl> =
-        unsafe { UPSafeCell::new(FrameAllocatorImpl::new()) };
+    pub static ref FRAME_ALLOCATOR: UPIntrFreeCell<FrameAllocatorImpl> =
+        unsafe { UPIntrFreeCell::new(FrameAllocatorImpl::new()) };
 }
 
 /// initiate the frame allocator using `ekernel` and `MEMORY_END`

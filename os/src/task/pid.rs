@@ -1,7 +1,7 @@
 //!Implementation of [`PidAllocator`]
 use crate::config::{KERNEL_STACK_SIZE, PAGE_SIZE, TRAMPOLINE};
 use crate::memory::{MapPermission, VirtAddr, KERNEL_SPACE};
-use crate::utils::UPSafeCell;
+use crate::utils::UPIntrFreeCell;
 extern crate alloc;
 use alloc::vec::Vec;
 use lazy_static::*;
@@ -41,8 +41,8 @@ impl PidAllocator {
 }
 
 lazy_static! {
-    pub static ref PID_ALLOCATOR: UPSafeCell<PidAllocator> =
-        unsafe { UPSafeCell::new(PidAllocator::new()) };
+    pub static ref PID_ALLOCATOR: UPIntrFreeCell<PidAllocator> =
+        unsafe { UPIntrFreeCell::new(PidAllocator::new()) };
 }
 ///Bind pid lifetime to `PidHandle`
 pub struct PidHandle(pub usize);

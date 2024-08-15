@@ -1,7 +1,7 @@
 //!Implementation of [`TaskManager`]
 use super::TaskControlBlock;
 extern crate alloc;
-use crate::utils::UPSafeCell;
+use crate::utils::UPIntrFreeCell;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -30,8 +30,8 @@ impl TaskManager {
 }
 
 lazy_static! {
-    pub static ref TASK_MANAGER: UPSafeCell<TaskManager> =
-        unsafe { UPSafeCell::new(TaskManager::new()) };
+    pub static ref TASK_MANAGER: UPIntrFreeCell<TaskManager> =
+        unsafe { UPIntrFreeCell::new(TaskManager::new()) };
 }
 ///Interface offered to add task
 pub fn add_task(task: Arc<TaskControlBlock>) {

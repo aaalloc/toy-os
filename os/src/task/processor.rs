@@ -3,7 +3,7 @@ use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
 use crate::trap::TrapContext;
-use crate::utils::UPSafeCell;
+use crate::utils::UPIntrFreeCell;
 extern crate alloc;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -38,7 +38,8 @@ impl Processor {
 }
 
 lazy_static! {
-    pub static ref PROCESSOR: UPSafeCell<Processor> = unsafe { UPSafeCell::new(Processor::new()) };
+    pub static ref PROCESSOR: UPIntrFreeCell<Processor> =
+        unsafe { UPIntrFreeCell::new(Processor::new()) };
 }
 ///The main part of process execution and scheduling
 ///Loop `fetch_task` to get the process that needs to run, and switch the process through `__switch`

@@ -1,4 +1,4 @@
-use crate::{memory::kernel_token, utils::UPSafeCell};
+use crate::{memory::kernel_token, utils::UPIntrFreeCell};
 use easy_fs::BlockDevice;
 use lazy_static::lazy_static;
 use virtio_drivers::{Hal, VirtIOBlk, VirtIOHeader};
@@ -9,10 +9,11 @@ use crate::memory::{
 use alloc::vec::Vec;
 
 const VIRTIO0: usize = 0x10001000;
-pub struct VirtIOBlock(UPSafeCell<VirtIOBlk<'static, VirtioHal>>);
+pub struct VirtIOBlock(UPIntrFreeCell<VirtIOBlk<'static, VirtioHal>>);
 
 lazy_static! {
-    static ref QUEUE_FRAMES: UPSafeCell<Vec<FrameTracker>> = unsafe { UPSafeCell::new(Vec::new()) };
+    static ref QUEUE_FRAMES: UPIntrFreeCell<Vec<FrameTracker>> =
+        unsafe { UPIntrFreeCell::new(Vec::new()) };
 }
 
 impl BlockDevice for VirtIOBlock {
@@ -34,7 +35,7 @@ impl VirtIOBlock {
     #[allow(unused)]
     pub fn new() -> Self {
         unsafe {
-            Self(UPSafeCell::new(
+            Self(UPIntrFreeCell::new(
                 VirtIOBlk::<VirtioHal>::new(&mut *(VIRTIO0 as *mut VirtIOHeader)).unwrap(),
             ))
         }
