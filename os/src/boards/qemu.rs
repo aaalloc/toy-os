@@ -1,9 +1,12 @@
+// use strum::IntoEnumIterator;
+extern crate alloc;
+use strum_macros::{EnumIter, FromRepr};
+
 use crate::drivers::{
     block::BLOCK_DEVICE,
     chardev::{UartDevice, UART},
     plic::{IntrTargetPriority, PLIC},
 };
-
 #[allow(non_snake_case, non_upper_case_globals)]
 pub mod VirtAddrEnum {
     pub const VIRTTEST: usize = 0x0010_0000;
@@ -24,12 +27,14 @@ pub const MMIO: &[(usize, usize)] = &[
 ];
 
 #[allow(non_snake_case, non_upper_case_globals)]
-pub mod IrqEnum {
-    pub const BLOCK: u32 = 8;
-    pub const UART: u32 = 10;
+#[derive(FromRepr)]
+#[repr(u32)]
+pub enum IrqEnum {
+    BLOCK = 8,
+    UART = 10,
 }
 
-pub const IRQS: [u32; 2] = [IrqEnum::BLOCK, IrqEnum::UART];
+pub const IRQS: [usize; 2] = [IrqEnum::BLOCK as usize, IrqEnum::UART as usize];
 
 pub fn device_init() {
     use riscv::register::sie;
@@ -52,12 +57,11 @@ pub fn device_init() {
 
 pub fn irq_handler() {
     let mut plic = unsafe { PLIC::new(VirtAddrEnum::PLIC) };
-    let intr_src_id = plic.claim(0, IntrTargetPriority::Supervisor);
-    match intr_src_id {
+    let irq_id = plic.claim(0, IntrTargetPriority::Supervisor);
+    match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
         IrqEnum::BLOCK => BLOCK_DEVICE.handle_irq(),
         IrqEnum::UART => UART.handle_irq(),
-        _ => panic!("unsupported IRQ {}", intr_src_id),
     }
-    plic.complete(0, IntrTargetPriority::Supervisor, intr_src_id);
+    plic.complete(0, IntrTargetPriority::Supervisor, irq_id);
 }
 pub type BlockDeviceImpl = crate::drivers::block::VirtIOBlock;
