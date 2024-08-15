@@ -1,13 +1,33 @@
 # toy-os
 Toy project around an kernel written in Rust/RISC-V
 
-Work in progress !
+## Feature
+- [x] Booting
+- [x] Memory management
+- [x] Process management
+- [x] User space
+- [x] Shell
+- [x] File system
+- Drivers (thanks to virtio)
+  - [x] UART
+  - [x] Block device
+  - [ ] Network
 
-(user space with shell and some command)
+## Run the os
+You should have QEMU and rust tools (rustup, cargo, ...) installed before trying to compile/run anything.
 
-https://github.com/user-attachments/assets/f569edd1-c47e-470c-af52-fc4a9de663ec
+```bash
+$ git clone git@github.com:aaalloc/toy-os.git
+$ cd toy-os/os
+$ make run
+# with log
+$ LOG=INFO make run
+```
+
 
 ## Ressources
-- https://github.com/rcore-os/rCore-Tutorial-v3
+Mainly used https://github.com/rcore-os/rCore-Tutorial-v3
+
+and
 - https://os.phil-opp.com/
 - https://osblog.stephenmarz.com
