@@ -20,12 +20,18 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-use core::arch::global_asm;
-
 use crate::drivers::chardev::UartDevice;
+use core::arch::global_asm;
 use drivers::chardev::UART;
+use lazy_static::lazy_static;
+use sync::UPIntrFreeCell;
 
 global_asm!(include_str!("entry.asm"));
+
+lazy_static! {
+    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+        unsafe { UPIntrFreeCell::new(false) };
+}
 
 pub fn test_runner(tests: &[&dyn Fn()]) {
     println!("Running {} tests", tests.len());
@@ -56,6 +62,7 @@ pub fn kmain() -> ! {
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     board::device_init();
+    *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

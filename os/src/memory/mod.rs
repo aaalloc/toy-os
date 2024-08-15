@@ -14,7 +14,7 @@ mod page_table;
 pub use address::StepByOne;
 use address::VPNRange;
 pub use address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
-pub use frame_allocator::{frame_alloc, frame_dealloc, FrameTracker};
+pub use frame_allocator::{frame_alloc, frame_alloc_more, frame_dealloc, FrameTracker};
 pub use memory_set::{kernel_token, remap_test};
 pub use memory_set::{MapPermission, MemorySet, KERNEL_SPACE};
 pub use page_table::UserBuffer;

@@ -1,13 +1,14 @@
 use crate::drivers::{
+    block::BLOCK_DEVICE,
     chardev::{UartDevice, UART},
     plic::{IntrTargetPriority, PLIC},
 };
 
 #[allow(non_snake_case, non_upper_case_globals)]
-mod VirtAddrEnum {
+pub mod VirtAddrEnum {
     pub const VIRTTEST: usize = 0x0010_0000;
     pub const UART0: usize = 0x1000_0000;
-    pub const VIRTIO: usize = 0x1000_1000;
+    pub const VIRTIO: usize = 0x1000_8000;
     pub const PLIC: usize = 0x0C00_0000;
 }
 
@@ -23,11 +24,12 @@ pub const MMIO: &[(usize, usize)] = &[
 ];
 
 #[allow(non_snake_case, non_upper_case_globals)]
-mod IrqEnum {
+pub mod IrqEnum {
+    pub const BLOCK: u32 = 8;
     pub const UART: u32 = 10;
 }
 
-pub const IRQS: [u32; 1] = [IrqEnum::UART];
+pub const IRQS: [u32; 2] = [IrqEnum::BLOCK, IrqEnum::UART];
 
 pub fn device_init() {
     use riscv::register::sie;
@@ -39,7 +41,6 @@ pub fn device_init() {
     plic.set_threshold(hart_id, supervisor, 0);
     plic.set_threshold(hart_id, machine, 1);
 
-    // irq nums: 10 uart
     for intr_src_id in IRQS {
         plic.enable(hart_id, supervisor, intr_src_id as usize);
         plic.set_priority(intr_src_id as usize, 1);
@@ -52,8 +53,8 @@ pub fn device_init() {
 pub fn irq_handler() {
     let mut plic = unsafe { PLIC::new(VirtAddrEnum::PLIC) };
     let intr_src_id = plic.claim(0, IntrTargetPriority::Supervisor);
-
     match intr_src_id {
+        IrqEnum::BLOCK => BLOCK_DEVICE.handle_irq(),
         IrqEnum::UART => UART.handle_irq(),
         _ => panic!("unsupported IRQ {}", intr_src_id),
     }
