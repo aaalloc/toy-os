@@ -4,7 +4,7 @@
 use crate::config::MEMORY_END;
 use crate::memory::address::{PhysAddr, PhysPageNum};
 use crate::println;
-use crate::utils::UPIntrFreeCell;
+use crate::sync::UPIntrFreeCell;
 extern crate alloc;
 use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};

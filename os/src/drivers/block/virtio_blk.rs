@@ -1,4 +1,4 @@
-use crate::{memory::kernel_token, utils::UPIntrFreeCell};
+use crate::{memory::kernel_token, sync::UPIntrFreeCell};
 use easy_fs::BlockDevice;
 use lazy_static::lazy_static;
 use virtio_drivers::{Hal, VirtIOBlk, VirtIOHeader};

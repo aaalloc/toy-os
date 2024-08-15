@@ -90,6 +90,9 @@ pub fn trap_handler() -> ! {
             set_next_trigger();
             suspend_current_and_run_next();
         }
+        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            crate::board::irq_handler();
+        }
         _ => {
             panic!(
                 "Unsupported trap {:?}, stval = {:#x}!",

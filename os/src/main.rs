@@ -15,12 +15,15 @@ mod lang_items;
 mod logging;
 mod memory;
 mod sbi;
+mod sync;
 mod syscall;
 mod task;
 mod timer;
 mod trap;
-mod utils;
 use core::arch::global_asm;
+
+use crate::drivers::chardev::UartDevice;
+use drivers::chardev::UART;
 
 global_asm!(include_str!("entry.asm"));
 
@@ -47,12 +50,12 @@ pub fn kmain() -> ! {
     test_main();
 
     memory::init();
-    memory::remap_test();
+    UART.init();
     task::add_initproc();
     trap::init();
-    // trap::enable_interrupt();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    board::device_init();
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

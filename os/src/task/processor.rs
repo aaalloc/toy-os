@@ -2,8 +2,8 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::sync::UPIntrFreeCell;
 use crate::trap::TrapContext;
-use crate::utils::UPIntrFreeCell;
 extern crate alloc;
 use alloc::sync::Arc;
 use lazy_static::*;

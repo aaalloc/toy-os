@@ -4,8 +4,8 @@ use crate::config::TRAP_CONTEXT;
 use crate::fs::inode::OSInode;
 use crate::fs::File;
 use crate::memory::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::sync::{UPIntrFreeCell, UPIntrRefMut};
 use crate::trap::{trap_handler, TrapContext};
-use crate::utils::{UPIntrFreeCell, UPIntrRefMut};
 extern crate alloc;
 use crate::fs::stdio::{Stdin, Stdout};
 use alloc::string::String;
@@ -222,4 +222,5 @@ pub enum TaskStatus {
     Ready,
     Running,
     Zombie,
+    Blocked,
 }

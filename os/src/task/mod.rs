@@ -27,17 +27,16 @@ use crate::fs::inode::root_os_inode;
 use crate::fs::inode::OpenFlags;
 use crate::sbi::shutdown;
 use alloc::sync::Arc;
+pub use context::TaskContext;
 use lazy_static::*;
 use log::info;
-pub use manager::fetch_task;
-use switch::__switch;
-use task::{TaskControlBlock, TaskStatus};
-
-pub use context::TaskContext;
-pub use manager::add_task;
+pub use manager::{add_task, fetch_task, wakeup_task};
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
 };
+use switch::__switch;
+pub use task::TaskControlBlock;
+use task::TaskStatus;
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
     // There must be an application running.
@@ -108,6 +107,13 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     // we do not have to save task context
     let mut _unused = TaskContext::zero_init();
     schedule(&mut _unused as *mut _);
+}
+
+pub fn block_current_task() -> *mut TaskContext {
+    let task = take_current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.task_status = TaskStatus::Blocked;
+    &mut task_inner.task_cx as *mut TaskContext
 }
 
 lazy_static! {

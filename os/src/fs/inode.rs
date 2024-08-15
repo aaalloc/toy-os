@@ -7,7 +7,7 @@ use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
 
 use crate::{
-    drivers::block::BLOCK_DEVICE, memory::UserBuffer, task::current_task, utils::UPIntrFreeCell,
+    drivers::block::BLOCK_DEVICE, memory::UserBuffer, sync::UPIntrFreeCell, task::current_task,
 };
 
 use super::{Dirent, DirentType, File};

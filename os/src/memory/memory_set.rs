@@ -5,7 +5,7 @@ use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::{StepByOne, VPNRange};
 use crate::config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
 use crate::println;
-use crate::utils::UPIntrFreeCell;
+use crate::sync::UPIntrFreeCell;
 use bitflags::bitflags;
 extern crate alloc;
 use alloc::collections::BTreeMap;
@@ -162,8 +162,8 @@ impl MemorySet {
         for pair in MMIO {
             memory_set.push(
                 MapArea::new(
-                    (*pair).0.into(),
-                    ((*pair).0 + (*pair).1).into(),
+                    VirtAddr((*pair).0),
+                    VirtAddr((*pair).0 + (*pair).1),
                     MapType::Identical,
                     MapPermission::R | MapPermission::W,
                 ),

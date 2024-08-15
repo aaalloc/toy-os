@@ -1,7 +1,8 @@
 //!Implementation of [`TaskManager`]
+use super::task::TaskStatus;
 use super::TaskControlBlock;
 extern crate alloc;
-use crate::utils::UPIntrFreeCell;
+use crate::sync::UPIntrFreeCell;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -36,6 +37,13 @@ lazy_static! {
 ///Interface offered to add task
 pub fn add_task(task: Arc<TaskControlBlock>) {
     TASK_MANAGER.exclusive_access().add(task);
+}
+
+pub fn wakeup_task(task: Arc<TaskControlBlock>) {
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.task_status = TaskStatus::Ready;
+    drop(task_inner);
+    add_task(task);
 }
 
 ///Interface offered to pop the first task
