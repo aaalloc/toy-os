@@ -13,6 +13,9 @@ Toy project around an kernel written in Rust/RISC-V
   - [x] Block device
   - [ ] Network
 
+
+https://github.com/user-attachments/assets/c0c72448-4394-4103-9d39-1057909a5819
+
 ## Run the os
 You should have QEMU and rust tools (rustup, cargo, ...) installed before trying to compile/run anything.
 
