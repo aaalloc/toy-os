@@ -22,6 +22,13 @@ pub const MMIO: &[(usize, usize)] = &[
     (VirtAddrEnum::PLIC, 0x210000),      // PLIC in virt machine
 ];
 
+#[allow(non_snake_case, non_upper_case_globals)]
+mod IrqEnum {
+    pub const UART: u32 = 10;
+}
+
+pub const IRQS: [u32; 1] = [IrqEnum::UART];
+
 pub fn device_init() {
     use riscv::register::sie;
     let mut plic = unsafe { PLIC::new(VirtAddrEnum::PLIC) };
@@ -33,9 +40,9 @@ pub fn device_init() {
     plic.set_threshold(hart_id, machine, 1);
 
     // irq nums: 10 uart
-    for intr_src_id in [10usize] {
-        plic.enable(hart_id, supervisor, intr_src_id);
-        plic.set_priority(intr_src_id, 1);
+    for intr_src_id in IRQS {
+        plic.enable(hart_id, supervisor, intr_src_id as usize);
+        plic.set_priority(intr_src_id as usize, 1);
     }
     unsafe {
         sie::set_sext();
@@ -47,7 +54,7 @@ pub fn irq_handler() {
     let intr_src_id = plic.claim(0, IntrTargetPriority::Supervisor);
 
     match intr_src_id {
-        10 => UART.handle_irq(),
+        IrqEnum::UART => UART.handle_irq(),
         _ => panic!("unsupported IRQ {}", intr_src_id),
     }
     plic.complete(0, IntrTargetPriority::Supervisor, intr_src_id);
