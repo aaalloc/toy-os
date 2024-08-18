@@ -27,7 +27,7 @@ use riscv::register::{
     sie, stval, stvec,
 };
 
-global_asm!(include_str!("trap.S"));
+global_asm!(".attribute arch, \"rv64g\"", include_str!("trap.S"));
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
     set_kernel_trap_entry();
