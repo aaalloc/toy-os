@@ -30,7 +30,6 @@ use riscv::register::{
 global_asm!(include_str!("trap.S"));
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
-    // let _ = fcsr::read();
     set_kernel_trap_entry();
 }
 
