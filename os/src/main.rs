@@ -98,9 +98,9 @@ fn clear_bss() {
 fn clear_fpu() {
     unsafe {
         for i in 0..32 {
-            asm!("fcvt.d.w f{i}, x0", i = in(reg) i, options(nostack));
-            asm!("fmv.d.x f{i}, x0", i = in(reg) i, options(nostack));
-            asm!("fmv.w.x f{i}, x0", i = in(reg) i, options(nostack));
+            asm!("fcvt.d.w f{i}, x0", i = in(reg) i);
+            asm!("fmv.d.x f{i}, x0", i = in(reg) i);
+            asm!("fmv.w.x f{i}, x0", i = in(reg) i);
         }
     }
 }
