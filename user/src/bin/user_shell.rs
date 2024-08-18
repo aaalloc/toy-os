@@ -27,22 +27,28 @@ pub fn get_current_dir() -> String {
 }
 
 pub fn exec_command(args: Vec<String>) -> i32 {
-    let pid = fork();
-    if pid == 0 {
-        let command = args[0].as_str();
-        let mut args: Vec<*const u8> = args.iter().map(|s| s.as_ptr()).collect();
-        args.push(core::ptr::null());
-        if exec(command, args.as_slice()) == -1 {
-            println!("Error when executing!");
-            return -4;
+    match fork() {
+        -1 => {
+            println!("Error when forking!");
+            return -1;
         }
-        unreachable!();
-    } else {
-        let mut exit_code: i32 = 0;
-        let exit_pid = waitpid(pid as usize, &mut exit_code);
-        assert_eq!(pid, exit_pid);
-        return exit_code;
-        // println!("Shell: Process {} exited with code {}", pid, exit_code);
+        0 => {
+            let command = args[0].as_str();
+            let mut args: Vec<*const u8> = args.iter().map(|s| s.as_ptr()).collect();
+            args.push(core::ptr::null());
+            if exec(command, args.as_slice()) == -1 {
+                println!("Error when executing!");
+                return -4;
+            }
+            unreachable!();
+        }
+        pid => {
+            let mut exit_code: i32 = 0;
+            let exit_pid = waitpid(pid as usize, &mut exit_code);
+            assert_eq!(pid, exit_pid);
+            println!("Shell: Process {} exited with code {}", pid, exit_code);
+            return exit_code;
+        }
     }
 }
 
