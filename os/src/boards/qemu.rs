@@ -29,6 +29,7 @@ pub const MMIO: &[(usize, usize)] = &[
 #[allow(non_snake_case, non_upper_case_globals)]
 #[derive(FromRepr)]
 #[repr(u32)]
+// use strum::EnumIter when !#[no_std] bug fixed
 pub enum IrqEnum {
     BLOCK = 8,
     UART = 10,
