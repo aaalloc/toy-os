@@ -29,7 +29,7 @@ $ LOG=INFO make run
 
 
 ## Ressources
-Mainly used https://github.com/rcore-os/rCore-Tutorial-v3
+Mainly used https://rcore-os.cn/rCore-Tutorial-Book-v3/
 
 and
 - https://os.phil-opp.com/
