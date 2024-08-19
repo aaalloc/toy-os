@@ -1,12 +1,14 @@
-// use strum::IntoEnumIterator;
 extern crate alloc;
-use strum_macros::{EnumIter, FromRepr};
+use enum_iterator::all;
+use enum_iterator_derive::Sequence;
+use strum_macros::FromRepr;
 
 use crate::drivers::{
     block::BLOCK_DEVICE,
     chardev::{UartDevice, UART},
     plic::{IntrTargetPriority, PLIC},
 };
+
 #[allow(non_snake_case, non_upper_case_globals)]
 pub mod VirtAddrEnum {
     pub const VIRTTEST: usize = 0x0010_0000;
@@ -26,16 +28,12 @@ pub const MMIO: &[(usize, usize)] = &[
     (VirtAddrEnum::PLIC, 0x210000),      // PLIC in virt machine
 ];
 
-#[allow(non_snake_case, non_upper_case_globals)]
-#[derive(FromRepr)]
+#[derive(FromRepr, Sequence, Clone, Copy)]
 #[repr(u32)]
-// use strum::EnumIter when !#[no_std] bug fixed
 pub enum IrqEnum {
     BLOCK = 8,
     UART = 10,
 }
-
-pub const IRQS: [usize; 2] = [IrqEnum::BLOCK as usize, IrqEnum::UART as usize];
 
 pub fn device_init() {
     use riscv::register::sie;
@@ -47,7 +45,7 @@ pub fn device_init() {
     plic.set_threshold(hart_id, supervisor, 0);
     plic.set_threshold(hart_id, machine, 1);
 
-    for intr_src_id in IRQS {
+    for intr_src_id in all::<IrqEnum>() {
         plic.enable(hart_id, supervisor, intr_src_id as usize);
         plic.set_priority(intr_src_id as usize, 1);
     }

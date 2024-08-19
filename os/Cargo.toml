@@ -18,4 +18,6 @@ bitflags = "2.6.0"
 xmas-elf = "0.9.1"
 log = "0.4"
 volatile = "0.3"
-strum_macros = { version = "0.26.3" }
+strum_macros = "0.26.3"
+enum-iterator= "2.1.0"
+enum-iterator-derive = "1.4.0"
