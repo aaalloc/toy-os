@@ -63,21 +63,38 @@ fs-img: $(APPS)
 	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/$(TARGET_DIR)/
 
 
+# QEMU_ARGS := -machine virt \
+# 			 -cpu rv64 \
+# 			 -nographic \
+# 			 -bios $(BOOTLOADER) \
+# 			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+# 			 -device virtio-blk-device,drive=x0 \
+# 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
+
+
 QEMU_ARGS := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
-			 -bios $(BOOTLOADER) \
-			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+			 -bios none \
+			 -global virtio-mmio.force-legacy=false \
+			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
 
+# 			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+
 run-inner: build
+ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS)
+endif
+ifeq ($(BOARD), rvemu)
+	@../rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
+endif
 
 gdbserver: build
 	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
 
 gdbclient:
-	@riscv64-unknown-elf-gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'
+	@gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'
 
 .PHONY: build env kernel clean disasm disasm-vim run-inner gdbserver gdbclient

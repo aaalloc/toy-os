@@ -1,3 +1,4 @@
+    .attribute arch, "rv64gc"    
     .section .text.entry
     .globl _start
 _start:

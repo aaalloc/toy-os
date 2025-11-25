@@ -68,10 +68,9 @@ impl BlockDevice for VirtIOBlock {
 impl VirtIOBlock {
     pub fn new() -> Self {
         let virtio_blk = unsafe {
-            UPIntrFreeCell::new(
-                VirtIOBlk::<VirtioHal>::new(&mut *(VirtAddrEnum::VIRTIO as *mut VirtIOHeader))
-                    .unwrap(),
-            )
+            let virtio_io_header = &mut *(VirtAddrEnum::VIRTIO as *mut VirtIOHeader);
+            assert!(virtio_io_header.verify());
+            UPIntrFreeCell::new(VirtIOBlk::<VirtioHal>::new(virtio_io_header).unwrap())
         };
         let mut condvars = BTreeMap::new();
         let channels = virtio_blk.exclusive_access().virt_queue_size();
