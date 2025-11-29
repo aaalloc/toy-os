@@ -24,6 +24,7 @@ mod trap;
 use crate::drivers::chardev::UartDevice;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
+use fdt::Fdt;
 use lazy_static::lazy_static;
 use log::info;
 use riscv::register::{
@@ -202,11 +203,31 @@ pub extern "C" fn start() -> ! {
     loop {}
 }
 
+unsafe fn parse_fdt(ptr: *const u8) {
+    let fdt = match Fdt::from_ptr(ptr) {
+        Ok(dt) => dt,
+        Err(e) => {
+            info!("Failed to parse FDT: {:?}", e);
+            return;
+        }
+    };
+
+    info!("FDT parsed successfully!");
+    for node in fdt.all_nodes() {
+        info!("Node: {}", node.name);
+    }
+}
+
 #[no_mangle]
-pub fn kmain() -> ! {
+pub fn kmain(hartid: usize, fdt_ptr: *const u8) -> ! {
+    let e = fdt_ptr;
     clear_bss();
     init_fpu();
     logging::init();
+    info!(
+        "hartid: {} Device tree at address: {:x}",
+        hartid, e as usize
+    );
     info!("Kernel is booting up...");
     trap::init();
     #[cfg(test)]
@@ -219,6 +240,9 @@ pub fn kmain() -> ! {
     // timer::set_next_trigger();
     board::device_init();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
+    unsafe {
+        parse_fdt(e);
+    }
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

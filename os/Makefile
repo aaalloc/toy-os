@@ -76,7 +76,6 @@ fs-img: $(APPS)
 QEMU_ARGS := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
-			 -bios /home/yanovskyy/Téléchargements/opensbi-1.7-rv-bin/share/opensbi/lp64/generic/firmware/fw_dynamic.bin \
 			 -global virtio-mmio.force-legacy=false \
 			 -dtb /home/yanovskyy/Documents/projects/toy-os/os/rvemu.dtb \
 			 -kernel $(KERNEL_BIN) \
