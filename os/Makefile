@@ -14,7 +14,7 @@ endif
 
 BOARD := qemu
 SBI ?= rustsbi
-BOOTLOADER := ../bootloader/$(SBI)-$(BOARD).bin
+BOOTLOADER := ../bootloader/$(SBI)-qemu.bin
 
 KERNEL_ENTRY_PA := 0x80200000
 
@@ -63,36 +63,40 @@ fs-img: $(APPS)
 	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/$(TARGET_DIR)/
 
 
-# QEMU_ARGS := -machine virt \
-# 			 -cpu rv64 \
-# 			 -nographic \
-# 			 -bios $(BOOTLOADER) \
-# 			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
-# 			 -device virtio-blk-device,drive=x0 \
-# 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
-
-
 QEMU_ARGS := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
-			 -bios none \
+			 -bios $(BOOTLOADER) \
+			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+			 -device virtio-blk-device,drive=x0 \
+			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
+
+
+QEMU_ARGS_NO_BOOTLOADER := -machine virt \
+			 -cpu rv64 \
+			 -nographic \
 			 -global virtio-mmio.force-legacy=false \
 			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
+# NOTE: without bios none, it default to OpenSBI, so base addr for kmain needs to be 0x80200000.
 
-# 			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
 
 run-inner: build
 ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS)
-endif
-ifeq ($(BOARD), rvemu)
+else ifeq ($(BOARD), qemunb)
+	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER)
+else ifeq ($(BOARD), rvemu)
 	@../rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
 endif
 
 gdbserver: build
+ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
+else ifeq ($(BOARD), qemunb)
+	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER) -s -S
+endif
 
 gdbclient:
 	@gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'

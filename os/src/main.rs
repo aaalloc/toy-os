@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(alloc_error_handler)]
 #![feature(custom_test_frameworks)]
+#![feature(slice_ptr_get)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -24,11 +25,10 @@ use crate::drivers::chardev::UartDevice;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
 use lazy_static::lazy_static;
-use log::info;
 use riscv::register::{
     mcounteren, medeleg, mepc, mhartid, mideleg, mie,
     mstatus::{self, set_mpp, MPP},
-    pmpaddr0, pmpcfg0, satp, sie,
+    pmpaddr0, pmpcfg0, satp, sie, sstatus, stvec,
 };
 use sync::UPIntrFreeCell;
 
@@ -69,28 +69,6 @@ fn init_fpu() {
     clear_fpu();
 }
 
-// unsafe fn delegate_all_traps() {
-//     // Delegate all exceptions to S-mode
-//     medeleg::set_instruction_misaligned();
-//     medeleg::set_instruction_fault();
-//     medeleg::set_illegal_instruction();
-//     medeleg::set_breakpoint();
-//     medeleg::set_load_misaligned();
-//     medeleg::set_load_fault();
-//     medeleg::set_store_misaligned();
-//     medeleg::set_store_fault();
-//     medeleg::set_user_env_call();
-//     medeleg::set_supervisor_env_call();
-//     medeleg::set_instruction_page_fault();
-//     medeleg::set_load_page_fault();
-//     medeleg::set_store_page_fault();
-
-//     // Delegate all interrupts to S-mode
-//     mideleg::set_ssoft();
-//     mideleg::set_stimer();
-//     mideleg::set_sext();
-// }
-
 // pub unsafe fn timerinit() {
 //     // Enable supervisor-mode timer interrupts
 //     mie::set_stimer(); // equivalent to w_mie(r_mie() | MIE_STIE)
@@ -108,42 +86,216 @@ fn init_fpu() {
 //     timer::set_next_trigger();
 // }
 
-// #[no_mangle]
-// pub extern "C" fn start() -> ! {
-//     unsafe {
-//         // --- Set MPP to Supervisor ---
-//         set_mpp(MPP::Supervisor);
+#[inline(always)]
+fn w_stimecmp(value: usize) {
+    unsafe {
+        asm!(
+            r#"
+        csrw 0x014d, {}  # stimecmp
+        "#,
+            in(reg) value
+        );
+    }
+}
 
-//         mepc::write(kmain as usize);
+#[inline(always)]
+fn r_menvcfg() -> usize {
+    let value: usize;
+    unsafe {
+        asm!(
+            r#"
+        csrr {}, 0x30a  # menvcfg
+        "#,
+            out(reg) value
+        );
+    }
+    value
+}
 
-//         // --- Disable paging temporarily ---
-//         satp::write(0);
+#[inline(always)]
+fn w_menvcfg(value: usize) {
+    unsafe {
+        asm!(
+            r#"
+        csrw 0x30a, {}  # menvcfg
+        "#,
+            in(reg) value
+        );
+    }
+}
 
-//         // --- Delegate all exceptions and interrupts to S-mode ---
-//         delegate_all_traps();
+#[inline(always)]
+fn r_time() -> usize {
+    let value: usize;
+    unsafe {
+        asm!(
+            r#"
+        csrr {}, 0xc01  # time
+        "#,
+            out(reg) value
+        );
+    }
+    value
+}
 
-//         // --- Enable supervisor external and timer interrupts ---
-//         sie::set_stimer();
-//         sie::set_sext();
+#[inline(always)]
+fn w_mcounteren(value: usize) {
+    unsafe {
+        asm!(
+            r#"
+        csrw mcounteren, {} 
+        "#,
+            in(reg) value
+        );
+    }
+}
 
-//         // --- Configure Physical Memory Protection ---
-//         pmpaddr0::write(0x3fffffffffffff);
-//         pmpcfg0::write(0xf);
+#[inline(always)]
+fn r_mcounteren() -> usize {
+    let value: usize;
+    unsafe {
+        asm!(
+            r#"
+        csrr {}, mcounteren 
+        "#,
+            out(reg) value
+        );
+    }
+    value
+}
 
-//         // --- Initialize timer ---
-//         timerinit();
+fn timerinit() {
+    // Enable supervisor-mode timer interrupts
+    unsafe {
+        mie::set_stimer();
+        // enable the sstc extension (i.e. stimecmp).
+        w_menvcfg(r_menvcfg() | (1 << 63));
 
-//         // --- Store hartid in tp register ---
-//         let id = mhartid::read();
-//         core::arch::asm!("mv tp, {}", in(reg) id);
+        // allow supervisor to use stimecmp and time.
+        w_mcounteren(r_mcounteren() | 2);
 
-//         // --- Switch to S-mode and jump to main() ---
-//         core::arch::asm!("mret");
-//     }
+        // ask for the very first timer interrupt.
+        w_stimecmp(r_time() + 1000000);
+    }; // equivalent to w_mie(r_mie() | MIE_STIE)
+}
 
-//     // Should never return
-//     loop {}
-// }
+#[inline(always)]
+fn r_mstatus() -> usize {
+    let value: usize;
+    unsafe {
+        asm!(
+            r#"
+        csrr {}, mstatus
+        "#,
+            out(reg) value
+        );
+    }
+    value
+}
+
+#[inline(always)]
+fn w_mstatus(value: usize) {
+    unsafe {
+        asm!(
+            r#"
+        csrw mstatus, {}
+        "#,
+            in(reg) value
+        );
+    }
+}
+
+fn write_char(c: u8) {
+    let eid = 1; // Example syscall ID for write_char
+    let arg0 = c as usize;
+    let error: usize;
+    unsafe {
+        asm!(
+            "ecall",
+            in("a7") eid,
+            inlateout("a0") arg0 => error,
+        )
+    };
+    if error != 0 {
+        panic!("write_char syscall failed with error code {}", error);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn start() -> ! {
+    unsafe {
+        // write_char(b'K');
+
+        // --- Set MPP to Supervisor ---
+        let mut x = r_mstatus();
+        x &= !(0x3 << 11);
+        x |= (1 as usize) << 11;
+        w_mstatus(x);
+
+        let sstatus = mstatus::read();
+        assert!(
+            sstatus.mpp() == MPP::Supervisor,
+            "Failed to set MPP to Supervisor mode!"
+        );
+
+        mepc::write(kmain as usize);
+
+        // --- Disable paging temporarily ---
+        satp::write(0);
+
+        // --- Delegate all exceptions and interrupts to S-mode ---
+
+        // delegate all exceptions
+        // to translate too:
+        // w_medeleg(0xffff);
+        // w_mideleg(0xffff);
+        // w_mcounteren(0xffff);
+        // w_scounteren(0xffff);
+        // w_sie(r_sie() | SIE_SEIE | SIE_STIE);
+        asm!(
+            r#"
+        li t0, 0xffff
+        csrw 0x302, t0  # medeleg
+        csrw 0x303, t0  # mideleg
+        "#
+        );
+        // medeleg::set_breakpoint();
+
+        // medeleg::clear_supervisor_env_call();
+        // medeleg::clear_load_misaligned();
+        // medeleg::clear_store_misaligned();
+        // medeleg::clear_illegal_instruction();
+
+        // --- Enable supervisor external and timer interrupts ---
+        sie::set_sext();
+        sie::set_stimer();
+
+        // --- Configure Physical Memory Protection ---
+        pmpaddr0::write(0x3fffffffffffff);
+        pmpcfg0::write(0xf);
+
+        // --- Initialize timer ---
+        timerinit();
+
+        // --- Store hartid in tp register ---
+        let id = mhartid::read();
+        core::arch::asm!("mv tp, {}", in(reg) id);
+
+        asm!("csrr t0, sstatus");
+
+        // TODO: why is this causing a trap?
+        // write_char(b'K');
+        // write_char(b'e');
+        // write_char(b'r');
+        // write_char(b'n');
+
+        // --- Switch to S-mode and jump to main() ---
+        core::arch::asm!("mret");
+    }
+
+    // Should never return
+    loop {}
+}
 
 #[no_mangle]
 pub fn kmain() -> ! {
@@ -151,7 +303,6 @@ pub fn kmain() -> ! {
     init_fpu();
     logging::init();
     trap::init();
-    info!("Kernel initialized!");
     #[cfg(test)]
     test_main();
 

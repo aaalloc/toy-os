@@ -8,7 +8,7 @@ opt-level = 1
 debug = true
 
 [dependencies]
-virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+virtio-drivers = "0.12.0"
 easy-fs = { path = "../easy-fs" }
 riscv = "0.11.1"
 sbi-rt = { version = "0.0.3", features = ["legacy"] }

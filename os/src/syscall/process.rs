@@ -26,7 +26,7 @@ pub fn sys_getcwd(buf: *mut u8, size: usize) -> isize {
     let len = cwd.as_bytes().len();
     let size = size.min(len);
     unsafe {
-        core::ptr::copy(cwd.as_ptr(), buf as *mut i8, size);
+        core::ptr::copy(cwd.as_ptr(), buf as *mut u8, size);
     }
 
     info!("getcwd: {:?}", cwd);

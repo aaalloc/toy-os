@@ -63,4 +63,4 @@ pub fn irq_handler() {
     }
     plic.complete(0, IntrTargetPriority::Supervisor, irq_id);
 }
-pub type BlockDeviceImpl = crate::drivers::block::VirtIOBlock;
+pub type BlockDeviceImpl<'a> = crate::drivers::block::VirtIOBlock<'a>;

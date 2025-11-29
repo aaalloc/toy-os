@@ -24,14 +24,12 @@ use log::error;
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
-    sie, sstatus, stval, stvec,
+    sie, stval, stvec,
 };
 
 global_asm!(".attribute arch, \"rv64g\"", include_str!("trap.S"));
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
-    let spp = sstatus::read().spp(); // should be Supervisor
-    assert_eq!(spp, sstatus::SPP::Supervisor);
     set_kernel_trap_entry();
 }
 

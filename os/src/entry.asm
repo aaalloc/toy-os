@@ -4,6 +4,7 @@
 _start:
     la sp, boot_stack_top
     call kmain
+    call start
 
     .section .bss.stack
     .globl boot_stack_lower_bound
