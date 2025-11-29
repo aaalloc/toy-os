@@ -3,8 +3,10 @@ use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::bitflags;
+use core::fmt::Debug;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
+use log::{debug, info};
 
 use crate::{
     drivers::block::BLOCK_DEVICE, memory::UserBuffer, sync::UPIntrFreeCell, task::current_task,
@@ -54,6 +56,23 @@ pub struct OSInode {
 pub struct OSInodeInner {
     offset: usize,
     inode: Arc<Inode>,
+}
+
+impl Debug for OSInode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let inner = self.inner.exclusive_access();
+        write!(f, "OSInode {{ inode: {:?} }}", inner.inode)
+    }
+}
+
+impl Debug for OSInodeInner {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "OSInodeInner {{ offset: {}, inode: {:?} }}",
+            self.offset, self.inode
+        )
+    }
 }
 
 pub fn root_os_inode() -> Arc<OSInode> {
@@ -171,11 +190,21 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
                 .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
         }
     } else {
-        current_inode.find(name).map(|inode| {
+        let inode = current_inode.find(name).map(|inode| {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
             }
             Arc::new(OSInode::new(readable, writable, inode))
-        })
+        });
+        match inode {
+            Some(inode) => {
+                info!("open_file: file {:?} opened", name);
+                Some(inode)
+            }
+            None => {
+                info!("open_file: file {:?} not found", name);
+                None
+            }
+        }
     }
 }

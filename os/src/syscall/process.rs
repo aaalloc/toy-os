@@ -9,7 +9,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use log::info;
+use log::{debug, info};
 
 #[repr(C)]
 pub struct TimeVal {
@@ -96,7 +96,9 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
             args = args.add(1);
         }
     }
-    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+    debug!("exec: path = {:?}, args = {:?}", path, args_vec);
+    let app_inode = open_file(path.as_str(), OpenFlags::RDONLY);
+    if let Some(app_inode) = app_inode {
         let all_data = app_inode.read_all();
         let task = current_task().unwrap();
         let argc = args_vec.len();

@@ -1,4 +1,5 @@
 extern crate alloc;
+use core::panic;
 use core::ptr::NonNull;
 
 use super::BlockDevice;
@@ -9,22 +10,13 @@ use crate::task::schedule;
 use crate::DEV_NON_BLOCKING_ACCESS;
 use alloc::collections::BTreeMap;
 
-use easy_fs::BLOCK_SZ;
 use log::{info, warn};
-use virtio_drivers::device::blk::{BlkReq, BlkResp, RespStatus, VirtIOBlk};
+use virtio_drivers::device::blk::{BlkReq, BlkResp, VirtIOBlk};
 use virtio_drivers::transport::mmio::{self, MmioTransport, VirtIOHeader};
 use virtio_drivers::transport::Transport;
 
-pub struct PendingReq {
-    pub req: BlkReq,
-    pub buf: [u8; BLOCK_SZ],
-    pub resp: alloc::boxed::Box<BlkResp>,
-    pub cond: Condvar,
-}
-
 pub struct VirtIOBlock<'a> {
     virtio_blk: UPIntrFreeCell<VirtIOBlk<VirtioHal, MmioTransport<'a>>>,
-    // token: u16, req: &BlkReq, buf: &mut [u8], resp: &mut BlkResp
     condvars: BTreeMap<u16, Condvar>,
 }
 
@@ -32,29 +24,24 @@ impl<'a> BlockDevice for VirtIOBlock<'static> {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
         if nb {
-            let mut resp = BlkResp::default();
             let mut req = BlkReq::default();
-            let token = self.virtio_blk.exclusive_session(|blk| {
-                let token = unsafe {
+            let mut resp = BlkResp::default();
+            let mut token = 0u16;
+            let task_cx_ptr = self.virtio_blk.exclusive_session(|blk| {
+                token = unsafe {
                     blk.read_blocks_nb(block_id, &mut req, buf, &mut resp)
                         .unwrap()
                 };
-                token
-            });
-            let task_cx_ptr = {
-                // let mut pending_buf = [0u8; BLOCK_SZ];
-                // pending_buf[..buf.len()].copy_from_slice(buf);
-                // let mut pending_req: &mut PendingReq = self.condvars.get(&token).unwrap();
-                // // pending_req.buf.copy_from_slice(&pending_buf);
-                // // pending_req.req = req;
-                // pending_req.resp = alloc::boxed::Box::new(resp);
                 self.condvars.get(&token).unwrap().wait_no_sched()
-            }; // NOTE: could not be copied because virtio_blk exclusive session
+            });
 
             schedule(task_cx_ptr);
-            match resp.status() {
-                RespStatus::OK => (),
-                _ => panic!("VirtIOBlk read error"),
+            unsafe {
+                self.virtio_blk
+                    .exclusive_session(|blk| {
+                        blk.complete_write_blocks(token, &mut req, buf, &mut resp)
+                    })
+                    .expect("Error when writing VirtIOBlk");
             }
         } else {
             self.virtio_blk
@@ -66,47 +53,38 @@ impl<'a> BlockDevice for VirtIOBlock<'static> {
 
     fn write_block(&self, block_id: usize, buf: &[u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
-
         if nb {
-            let mut resp = BlkResp::default();
             let mut req = BlkReq::default();
+            let mut resp = BlkResp::default();
+            let mut token = 0u16;
             let task_cx_ptr = self.virtio_blk.exclusive_session(|blk| {
-                let token = unsafe {
-                    blk.write_blocks_nb(block_id, &mut req, buf, &mut resp)
+                token = unsafe {
+                    blk.write_blocks_nb(block_id, &mut req, &buf, &mut resp)
                         .unwrap()
                 };
-
                 self.condvars.get(&token).unwrap().wait_no_sched()
             });
 
             schedule(task_cx_ptr);
-
-            match resp.status() {
-                RespStatus::OK => (),
-                _ => panic!("VirtIOBlk write error"),
+            unsafe {
+                self.virtio_blk
+                    .exclusive_session(|blk| {
+                        blk.complete_write_blocks(token, &mut req, &buf, &mut resp)
+                    })
+                    .expect("Error when writing VirtIOBlk");
             }
         } else {
             self.virtio_blk
                 .exclusive_access()
-                .write_blocks(block_id, buf)
+                .write_blocks(block_id, &buf)
                 .expect("VirtIOBlk write error");
         }
     }
 
     fn handle_irq(&self) {
         self.virtio_blk.exclusive_session(|blk| {
-            while let Some(token) = blk.peek_used() {
-                let pending_req = self.condvars.get(&token).unwrap();
-                // unsafe {
-                //     blk.complete_read_blocks(
-                //         token,
-                //         pending_req.req.as_ref(),
-                //         &mut pending_req.buf[..],
-                //         pending_req.resp.as_mut(),
-                //     )
-                // };
-                // pending_req.condvar.signal();
-                // blk.complete_read_blocks(token);
+            if let Some(token) = blk.peek_used() {
+                self.condvars.get(&token).unwrap().signal();
             }
         });
     }

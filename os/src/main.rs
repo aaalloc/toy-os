@@ -238,7 +238,7 @@ pub extern "C" fn start() -> ! {
             "Failed to set MPP to Supervisor mode!"
         );
 
-        mepc::write(kmain as usize);
+        mepc::write(kmain as *const () as usize);
 
         // --- Disable paging temporarily ---
         satp::write(0);
@@ -323,8 +323,11 @@ fn clear_bss() {
         fn ebss();
     }
     unsafe {
-        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
-            .fill(0);
+        core::slice::from_raw_parts_mut(
+            sbss as *const () as usize as *mut u8,
+            ebss as *const () as usize - sbss as *const () as usize,
+        )
+        .fill(0);
     }
 }
 
