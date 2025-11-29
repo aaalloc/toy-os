@@ -98,7 +98,7 @@ impl VirtIOBlock<'_> {
             let transport = match unsafe { MmioTransport::new(header, mmio_size) } {
                 Err(e) => {
                     warn!("Error creating VirtIO MMIO transport: {}", e);
-                    panic!("Failed to create VirtIO blk transport");
+                    panic!("Failed to create VirtIO blk transport: {}", e);
                 }
                 Ok(transport) => {
                     info!(

@@ -6,7 +6,7 @@ use bitflags::bitflags;
 use core::fmt::Debug;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
-use log::{debug, info};
+use log::info;
 
 use crate::{
     drivers::block::BLOCK_DEVICE, memory::UserBuffer, sync::UPIntrFreeCell, task::current_task,

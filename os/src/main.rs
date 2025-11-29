@@ -25,14 +25,15 @@ use crate::drivers::chardev::UartDevice;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
 use lazy_static::lazy_static;
+use log::info;
 use riscv::register::{
-    mcounteren, medeleg, mepc, mhartid, mideleg, mie,
+    medeleg, mepc, mhartid, mie,
     mstatus::{self, set_mpp, MPP},
-    pmpaddr0, pmpcfg0, satp, sie, sstatus, stvec,
+    pmpaddr0, pmpcfg0, satp, sie,
 };
 use sync::UPIntrFreeCell;
 
-global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!(concat!(env!("OUT_DIR"), "/entry.S")));
 
 lazy_static! {
     pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
@@ -69,35 +70,6 @@ fn init_fpu() {
     clear_fpu();
 }
 
-// pub unsafe fn timerinit() {
-//     // Enable supervisor-mode timer interrupts
-//     mie::set_stimer(); // equivalent to w_mie(r_mie() | MIE_STIE)
-
-//     // Enable the SSTC extension (bit 63 of menvcfg)
-//     let mut value: usize;
-//     core::arch::asm!("csrr {}, 0x30a", out(reg) value);
-//     value |= 1 << 63;
-//     core::arch::asm!("csrw 0x30a, {}", in(reg) value);
-
-//     // Allow supervisor to use stimecmp and time (bit 1 of mcounteren)
-//     mcounteren::set_tm();
-
-//     // Ask for the very first timer interrupt
-//     timer::set_next_trigger();
-// }
-
-#[inline(always)]
-fn w_stimecmp(value: usize) {
-    unsafe {
-        asm!(
-            r#"
-        csrw 0x014d, {}  # stimecmp
-        "#,
-            in(reg) value
-        );
-    }
-}
-
 #[inline(always)]
 fn r_menvcfg() -> usize {
     let value: usize;
@@ -122,20 +94,6 @@ fn w_menvcfg(value: usize) {
             in(reg) value
         );
     }
-}
-
-#[inline(always)]
-fn r_time() -> usize {
-    let value: usize;
-    unsafe {
-        asm!(
-            r#"
-        csrr {}, 0xc01  # time
-        "#,
-            out(reg) value
-        );
-    }
-    value
 }
 
 #[inline(always)]
@@ -173,65 +131,14 @@ fn timerinit() {
 
         // allow supervisor to use stimecmp and time.
         w_mcounteren(r_mcounteren() | 2);
-
-        // ask for the very first timer interrupt.
-        w_stimecmp(r_time() + 1000000);
     }; // equivalent to w_mie(r_mie() | MIE_STIE)
-}
-
-#[inline(always)]
-fn r_mstatus() -> usize {
-    let value: usize;
-    unsafe {
-        asm!(
-            r#"
-        csrr {}, mstatus
-        "#,
-            out(reg) value
-        );
-    }
-    value
-}
-
-#[inline(always)]
-fn w_mstatus(value: usize) {
-    unsafe {
-        asm!(
-            r#"
-        csrw mstatus, {}
-        "#,
-            in(reg) value
-        );
-    }
-}
-
-fn write_char(c: u8) {
-    let eid = 1; // Example syscall ID for write_char
-    let arg0 = c as usize;
-    let error: usize;
-    unsafe {
-        asm!(
-            "ecall",
-            in("a7") eid,
-            inlateout("a0") arg0 => error,
-        )
-    };
-    if error != 0 {
-        panic!("write_char syscall failed with error code {}", error);
-    }
 }
 
 #[no_mangle]
 pub extern "C" fn start() -> ! {
     unsafe {
-        // write_char(b'K');
-
         // --- Set MPP to Supervisor ---
-        let mut x = r_mstatus();
-        x &= !(0x3 << 11);
-        x |= (1 as usize) << 11;
-        w_mstatus(x);
-
+        set_mpp(MPP::Supervisor);
         let sstatus = mstatus::read();
         assert!(
             sstatus.mpp() == MPP::Supervisor,
@@ -261,10 +168,10 @@ pub extern "C" fn start() -> ! {
         );
         // medeleg::set_breakpoint();
 
-        // medeleg::clear_supervisor_env_call();
-        // medeleg::clear_load_misaligned();
-        // medeleg::clear_store_misaligned();
-        // medeleg::clear_illegal_instruction();
+        medeleg::clear_supervisor_env_call();
+        medeleg::clear_load_misaligned();
+        medeleg::clear_store_misaligned();
+        medeleg::clear_illegal_instruction();
 
         // --- Enable supervisor external and timer interrupts ---
         sie::set_sext();
@@ -284,8 +191,6 @@ pub extern "C" fn start() -> ! {
         asm!("csrr t0, sstatus");
 
         // TODO: why is this causing a trap?
-        // write_char(b'K');
-        // write_char(b'e');
         // write_char(b'r');
         // write_char(b'n');
 
@@ -302,6 +207,7 @@ pub fn kmain() -> ! {
     clear_bss();
     init_fpu();
     logging::init();
+    info!("Kernel is booting up...");
     trap::init();
     #[cfg(test)]
     test_main();
@@ -310,7 +216,7 @@ pub fn kmain() -> ! {
     UART.init();
     task::add_initproc();
     trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+    // timer::set_next_trigger();
     board::device_init();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();

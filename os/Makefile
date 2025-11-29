@@ -25,6 +25,15 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 DISASM ?= -x
 TEST ?=
 
+ENTRY_POINT=kmain
+ifeq ($(BOARD), qemu)
+	ENTRY_POINT := kmain
+else ifeq ($(BOARD), nobios)
+	ENTRY_POINT := start
+else ifeq ($(BOARD), rvemu)
+	ENTRY_POINT := start
+endif
+
 build: env $(KERNEL_BIN) fs-img
 
 env:
@@ -38,7 +47,7 @@ kernel:
 	@cd ../user && make build
 	@echo Platform: $(BOARD)
 	@cp src/linker-$(BOARD).ld src/linker.ld
-	@cargo build $(MODE_ARG)
+	@ENTRY_POINT=$(ENTRY_POINT) cargo build $(MODE_ARG)
 	@rm src/linker.ld
 
 
@@ -62,19 +71,20 @@ fs-img: $(APPS)
 	@rm -f $(FS_IMG)
 	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/$(TARGET_DIR)/
 
-
 QEMU_ARGS := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
-			 -bios $(BOOTLOADER) \
-			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+			 -bios /home/yanovskyy/Téléchargements/opensbi-1.7-rv-bin/share/opensbi/lp64/generic/firmware/fw_dynamic.bin \
+			 -global virtio-mmio.force-legacy=false \
+			 -dtb /home/yanovskyy/Documents/projects/toy-os/os/virt.dtb \
+			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
-
 
 QEMU_ARGS_NO_BOOTLOADER := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
+			 -bios none \
 			 -global virtio-mmio.force-legacy=false \
 			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
@@ -85,16 +95,16 @@ QEMU_ARGS_NO_BOOTLOADER := -machine virt \
 run-inner: build
 ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS)
-else ifeq ($(BOARD), qemunb)
+else ifeq ($(BOARD), nobios)
 	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER)
 else ifeq ($(BOARD), rvemu)
-	@../rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
+	@/home/yanovskyy/Documents/projects/rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
 endif
 
 gdbserver: build
 ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
-else ifeq ($(BOARD), qemunb)
+else ifeq ($(BOARD), nobios)
 	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER) -s -S
 endif
 
