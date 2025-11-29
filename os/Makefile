@@ -28,6 +28,8 @@ TEST ?=
 ENTRY_POINT=kmain
 ifeq ($(BOARD), qemu)
 	ENTRY_POINT := kmain
+else ifeq ($(BOARD), rv64gc-emu)
+	ENTRY_POINT := kmain
 else ifeq ($(BOARD), nobios)
 	ENTRY_POINT := start
 else ifeq ($(BOARD), rvemu)
@@ -37,8 +39,8 @@ endif
 build: env $(KERNEL_BIN) fs-img
 
 env:
-	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
-	cargo install cargo-binutils
+# 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
+# 	cargo install cargo-binutils
 
 $(KERNEL_BIN): kernel
 	@$(OBJCOPY) $(KERNEL_ELF) --strip-all -O binary $@
@@ -76,7 +78,7 @@ QEMU_ARGS := -machine virt \
 			 -nographic \
 			 -bios /home/yanovskyy/Téléchargements/opensbi-1.7-rv-bin/share/opensbi/lp64/generic/firmware/fw_dynamic.bin \
 			 -global virtio-mmio.force-legacy=false \
-			 -dtb /home/yanovskyy/Documents/projects/toy-os/os/virt.dtb \
+			 -dtb /home/yanovskyy/Documents/projects/toy-os/os/rvemu.dtb \
 			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
@@ -99,6 +101,12 @@ else ifeq ($(BOARD), nobios)
 	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER)
 else ifeq ($(BOARD), rvemu)
 	@/home/yanovskyy/Documents/projects/rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
+else ifeq ($(BOARD), rv64gc-emu)
+	@/home/yanovskyy/Documents/builds/rv64gc-emu/build/rv64gc_emu \
+		--bios /home/yanovskyy/Téléchargements/opensbi-1.7-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin \
+		--dtb /home/yanovskyy/Documents/projects/toy-os/os/rv64gc-emu.dtb \
+		--kernel $(KERNEL_BIN) \
+		--virtual-drive $(FS_IMG)
 endif
 
 gdbserver: build

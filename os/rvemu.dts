@@ -19,8 +19,8 @@
         compatible = "ns16550a";
     };
 
-    virtio_mmio@10001000 {
-        interrupts = <0x01>;
+    virtio_mmio@10008000 {
+        interrupts = <0x08>;
         interrupt-parent = <0x03>;
         reg = <0x0 0x10001000 0x0 0x1000>;
         compatible = "virtio,mmio";
@@ -59,7 +59,7 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		reg = <0x0 0x80000000 0x0 0x8000000>;
+		reg = <0x0 0x80000000 0x0 0x0badc0de>;
 	};
 
     soc {

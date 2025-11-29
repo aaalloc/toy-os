@@ -3,7 +3,6 @@ use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::bitflags;
-use core::fmt::Debug;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
 use log::info;
@@ -56,23 +55,6 @@ pub struct OSInode {
 pub struct OSInodeInner {
     offset: usize,
     inode: Arc<Inode>,
-}
-
-impl Debug for OSInode {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let inner = self.inner.exclusive_access();
-        write!(f, "OSInode {{ inode: {:?} }}", inner.inode)
-    }
-}
-
-impl Debug for OSInodeInner {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "OSInodeInner {{ offset: {}, inode: {:?} }}",
-            self.offset, self.inode
-        )
-    }
 }
 
 pub fn root_os_inode() -> Arc<OSInode> {
