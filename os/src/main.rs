@@ -21,7 +21,10 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-use crate::drivers::chardev::UartDevice;
+use crate::drivers::pcie::scan_pci_devices;
+use crate::drivers::{chardev::UartDevice, pcie::get_pci_base_address};
+extern crate alloc;
+use alloc::vec::Vec;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
 use fdt::Fdt;
@@ -203,31 +206,39 @@ pub extern "C" fn start() -> ! {
     loop {}
 }
 
-unsafe fn parse_fdt(ptr: *const u8) {
+unsafe fn parse_fdt(ptr: *const u8) -> Result<Fdt<'static>, fdt::FdtError> {
     let fdt = match Fdt::from_ptr(ptr) {
         Ok(dt) => dt,
         Err(e) => {
             info!("Failed to parse FDT: {:?}", e);
-            return;
+            return Err(e);
         }
     };
-
-    info!("FDT parsed successfully!");
     for node in fdt.all_nodes() {
         info!("Node: {}", node.name);
+        // child
+        info!("  Child nodes:");
+        for child in node.children() {
+            info!("    - {}", child.name);
+        }
     }
+
+    return Ok(fdt);
 }
 
 #[no_mangle]
-pub fn kmain(hartid: usize, fdt_ptr: *const u8) -> ! {
+pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
     let e = fdt_ptr;
+    let fdt = unsafe { parse_fdt(e) };
+    if fdt.is_err() {
+        panic!("Failed to parse FDT: {:?}", fdt.err());
+    }
+    let pci_base_address = get_pci_base_address(&fdt.unwrap()).unwrap();
+    scan_pci_devices(pci_base_address);
+
     clear_bss();
     init_fpu();
     logging::init();
-    info!(
-        "hartid: {} Device tree at address: {:x}",
-        hartid, e as usize
-    );
     info!("Kernel is booting up...");
     trap::init();
     #[cfg(test)]
@@ -240,9 +251,6 @@ pub fn kmain(hartid: usize, fdt_ptr: *const u8) -> ! {
     // timer::set_next_trigger();
     board::device_init();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
-    unsafe {
-        parse_fdt(e);
-    }
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

@@ -6,6 +6,7 @@ KERNEL_BIN := $(KERNEL_ELF).bin
 DISASM_TMP := $(TARGET_DIR)/asm
 
 FS_IMG := ../user/$(TARGET_DIR)/fs.img
+FS_IMG_NVME := ../user/$(TARGET_DIR)/fs-nvme.img
 APPS := ../user/src/bin/*
 
 ifeq ($(MODE), release)
@@ -71,16 +72,19 @@ $(APPS):
 fs-img: $(APPS)
 	@cd ../user && make build
 	@rm -f $(FS_IMG)
+	@rm -f $(FS_IMG_NVME)
 	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/$(TARGET_DIR)/
+	@cp ../user/$(TARGET_DIR)/fs.img $(FS_IMG_NVME)
 
 QEMU_ARGS := -machine virt \
 			 -cpu rv64 \
 			 -nographic \
 			 -global virtio-mmio.force-legacy=false \
-			 -dtb /home/yanovskyy/Documents/projects/toy-os/os/rvemu.dtb \
 			 -kernel $(KERNEL_BIN) \
 			 -device virtio-blk-device,drive=x0 \
-			 -drive file=$(FS_IMG),if=none,format=raw,id=x0
+			 -drive file=$(FS_IMG),if=none,format=raw,id=x0 \
+			 -device nvme,serial=deadbeef,drive=nvm \
+			 -drive file=$(FS_IMG_NVME),if=none,id=nvm,format=raw
 
 QEMU_ARGS_NO_BOOTLOADER := -machine virt \
 			 -cpu rv64 \
