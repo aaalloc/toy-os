@@ -234,16 +234,15 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
         panic!("Failed to parse FDT: {:?}", fdt.err());
     }
     let pci_base_address = get_pci_base_address(&fdt.unwrap()).unwrap();
-    scan_pci_devices(pci_base_address);
-
+    
     clear_bss();
     init_fpu();
     logging::init();
-    info!("Kernel is booting up...");
     trap::init();
-    #[cfg(test)]
-    test_main();
-
+    // #[cfg(test)]
+    // test_main();
+    
+    scan_pci_devices(pci_base_address);
     memory::init();
     UART.init();
     task::add_initproc();

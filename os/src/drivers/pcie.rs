@@ -1,19 +1,217 @@
+use core::fmt::{Display, Formatter};
+use core::mem::offset_of;
+
+use alloc::fmt;
 use log::info;
 
 // https://pcisig.com/sites/default/files/files/PCI_Code-ID_r_1_11__v24_Jan_2019.pdf
 
-#[repr(C)]
-struct PciConfig {
-    vendor_id: u16,
-    device_id: u16,
-    command: u16,
-    status: u16,
-    revision_id: u8,
-    prog_if: u8,
-    subclass: u8,
-    class_code: u8,
-    // other fields omitted...
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::register_structs;
+
+use tock_registers::register_bitfields;
+
+register_bitfields! {
+    u16, 
+    PciCommand [
+        IO_SPACE OFFSET(0) NUMBITS(1) [],
+        MEMORY_SPACE_ENABLE OFFSET(1) NUMBITS(1) [],
+        BUS_MASTER_ENABLE OFFSET(2) NUMBITS(1) [],
+        SPECIAL_CYCLES OFFSET(3) NUMBITS(1) [],
+        MEM_WRITE_INVALIDATE OFFSET(4) NUMBITS(1) [],
+        VGA_PALETTE_SNOOP OFFSET(5) NUMBITS(1) [],
+        PARITY_ERROR_RESPONSE OFFSET(6) NUMBITS(1) [],
+        SERR_ENABLE OFFSET(8) NUMBITS(1) [],
+        FAST_BACK_TO_BACK_ENABLE OFFSET(9) NUMBITS(1) [],
+        IRQ_ENABLE OFFSET(10) NUMBITS(1) []
+    ],
+
+    PciStatus [
+        INTERRUPT_STATUS OFFSET(3) NUMBITS(1) [],
+        CAPABILITIES_LIST OFFSET(4) NUMBITS(1) [],
+        MHZ66_CAPABLE OFFSET(5) NUMBITS(1) [],
+        FAST_BACK_TO_BACK_CAPABLE OFFSET(7) NUMBITS(1) [],
+        DATA_PARITY_ERROR_DETECTED OFFSET(8) NUMBITS(1) [],
+        DEVSEL_TIMING OFFSET(9) NUMBITS(2) [],
+        SIGNATURE_CORRECT OFFSET(11) NUMBITS(1) [],
+        RECEIVED_TARGET_ABORT OFFSET(12) NUMBITS(1) [],
+        RECEIVED_MASTER_ABORT OFFSET(13) NUMBITS(1) [],
+        SENT_TARGET_ABORT OFFSET(14) NUMBITS(1) [],
+        SENT_MASTER_ABORT OFFSET(15) NUMBITS(1) []
+    ],
 }
+
+register_bitfields! [u32,
+    BAR [
+        // For memory BARs, bit 0 indicates memory or I/O
+        MEM_IO OFFSET(0) NUMBITS(1) [
+            Memory = 0,
+            IO = 1
+        ],
+        // Bits 1-2: type for memory BAR (32-bit/64-bit/etc)
+        TYPE OFFSET(1) NUMBITS(2) [
+            Mem32 = 0,
+            Mem64 = 2,
+        ],
+        // Bit 3: prefetchable
+        PREFETCHABLE OFFSET(3) NUMBITS(1) [
+            NotPrefetchable = 0,
+            Prefetchable = 1
+        ],
+        // Bits 4..31: address (aligned naturally, lower bits masked when sizing)
+        ADDRESS OFFSET(4) NUMBITS(28) []
+    ]
+];
+
+
+register_structs! { 
+    pub PciConfig {
+        (0x00 => pub vendor_id: ReadOnly<u16>),
+        (0x02 => pub device_id: ReadOnly<u16>),
+        (0x04 => pub command: ReadWrite<u16, PciCommand::Register>),
+        (0x06 => pub status: ReadOnly<u16, PciStatus::Register>),
+        (0x08 => pub revision_id: ReadOnly<u8>),
+        (0x09 => pub prog_if: ReadOnly<u8>),
+        (0x0A => pub subclass: ReadOnly<u8>),
+        (0x0B => pub class_code: ReadOnly<u8>),
+        (0x0C => pub cache_line_size: ReadWrite<u8>),
+        (0x0D => pub latency_timer: ReadWrite<u8>),
+        (0x0E => pub header_type: ReadOnly<u8>),
+        (0x0F => pub bist: ReadWrite<u8>),
+        (0x10 => @END),
+    },
+    pub PciHeaderType0 {
+        (0x00 => pub config: PciConfig),
+        (0x10 => pub bar: [ReadWrite<u32>; 6]),
+        (0x28 => pub cis_pointer: ReadWrite<u32>),
+        (0x2C => pub sub_vendor_id: ReadOnly<u16>),
+        (0x2E => pub sub_device_id: ReadOnly<u16>),
+        (0x30 => pub rom_bar: ReadWrite<u32>),
+        (0x34 => pub capabilities_pointer: ReadWrite<u8>),
+        (0x35 => _reserved1: [u8; 3]),
+        (0x38 => pub interrupt_line: ReadWrite<u8>),
+        (0x39 => pub interrupt_pin: ReadOnly<u8>),
+        (0x3A => pub min_grant: ReadOnly<u8>),
+        (0x3B => pub max_latency: ReadOnly<u8>),
+        (0x3C => @END),
+    },
+
+    // https://wiki.osdev.org/NVMe
+    pub NvmeDevice {
+        (0x00 => pub cap: ReadOnly<u64>),        // Controller Capabilities
+        (0x08 => pub vs: ReadOnly<u32>),         // Version
+        (0x0C => pub intms: ReadWrite<u32>),      // Interrupt Mask Set
+        (0x10 => pub intmc: ReadWrite<u32>),      // Interrupt Mask Clear
+        (0x14 => pub cc: ReadWrite<u32>),         // Controller Configuration
+        (0x18 => _rsvd1: [u8; 4]),
+        (0x1C => pub csts: ReadOnly<u32>),       // Controller Status
+        (0x20 => pub nssr: ReadWrite<u32>),       // NVM Subsystem Reset (optional)
+        (0x24 => pub aqa: ReadWrite<u32>),        // Admin Queue Attributes
+        (0x28 => pub asq: ReadWrite<u64>),        // Admin Submission Queue Base Address
+        (0x30 => pub acq: ReadWrite<u64>),        // Admin Completion Queue Base Address
+        // NOTE: not sure
+        (0x38 => pub cmbloc: ReadWrite<u32>),     // Controller Memory Buffer Location (optional)
+        (0x3C => pub cmbsz: ReadWrite<u32>),      // Controller Memory Buffer Size (optional)
+        (0x40 => pub bpinfo: ReadWrite<u32>),     // Boot Partition Information
+        (0x44 => pub bprsel: ReadWrite<u32>),     // Boot Partition Read Select
+        (0x48 => pub bpmbl: ReadWrite<u64>),      // Boot Partition Memory Buffer Location
+        (0x50 => @END),
+    }
+
+}
+
+pub enum PciDeviceType {
+    Nvme(NvmeDevice),
+    Other,
+}
+
+impl Display for PciConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "PciConfig {{
+    vendor_id: {:04x},
+    device_id: {:04x},
+    command: {:04x},
+    status: {:04x},
+    revision_id: {:02x},
+    prog_if: {:02x},
+    subclass: {:02x},
+    class_code: {:02x},
+    cache_line_size: {:02x},
+    latency_timer: {:02x},
+    header_type: {:02x},
+    bist: {:02x},
+}}",
+            self.vendor_id.get(),
+            self.device_id.get(),
+            self.command.get(),
+            self.status.get(),
+            self.revision_id.get(),
+            self.prog_if.get(),
+            self.subclass.get(),
+            self.class_code.get(),
+            self.cache_line_size.get(),
+            self.latency_timer.get(),
+            self.header_type.get(),
+            self.bist.get(),
+        )
+    }
+}
+
+// Exemple pour PciHeaderType0
+impl Display for PciHeaderType0 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "PciHeaderType0 {{
+    config: {},
+    bar: [{:08x}, {:08x}, {:08x}, {:08x}, {:08x}, {:08x}],
+    cis_pointer: {:08x},
+    sub_vendor_id: {:04x},
+    sub_device_id: {:04x},
+    rom_bar: {:08x},
+    capabilities_pointer: {:02x},
+    interrupt_line: {:02x},
+    interrupt_pin: {:02x},
+    min_grant: {:02x},
+    max_latency: {:02x},
+}}",
+            self.config,
+            self.bar[0].get(),
+            self.bar[1].get(),
+            self.bar[2].get(),
+            self.bar[3].get(),
+            self.bar[4].get(),
+            self.bar[5].get(),
+            self.cis_pointer.get(),
+            self.sub_vendor_id.get(),
+            self.sub_device_id.get(),
+            self.rom_bar.get(),
+            self.capabilities_pointer.get(),
+            self.interrupt_line.get(),
+            self.interrupt_pin.get(),
+            self.min_grant.get(),
+            self.max_latency.get(),
+        )
+    }
+}
+
+
+impl PciDeviceType {
+    pub fn new(cfg: &PciHeaderType0) -> Option<Self> {
+        match (cfg.config.class_code.get(), cfg.config.subclass.get(), cfg.config.prog_if.get()) {
+            (0x01, 0x08, 0x02) => {
+                let nvme_base = ( cfg as *const PciHeaderType0 as usize + 0x40 ) as *mut NvmeDevice;
+                let nvme = unsafe { core::ptr::read_volatile(nvme_base) };
+                Some(PciDeviceType::Nvme(nvme))
+            }
+            _ => None,
+        }
+    }
+}
+
 
 pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
     let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) else {
@@ -27,11 +225,41 @@ pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
     Ok(reg.starting_address as usize)
 }
 
-fn read_pci_class_id(base_addr: usize) -> (u8, u8, u16) {
-    // Safety: assumes base_addr points to a valid PCIe config header
-    let cfg: &PciConfig = unsafe { &*(base_addr as *const PciConfig) };
-    (cfg.class_code, cfg.subclass, cfg.device_id)
+
+pub fn probe_bar(bar: &ReadWrite<u32>, command: &ReadWrite<u16, PciCommand::Register>) -> u32 {
+    // 1. Save original BAR value
+    let original_bar = bar.get();
+
+    // 2. Save original command register
+    let original_cmd = command.get();
+
+    // 3. Disable memory and I/O decoding before probing
+    command.set(
+        original_cmd & !(PciCommand::MEMORY_SPACE_ENABLE.mask | PciCommand::IO_SPACE.mask)
+    );
+
+    // 4. Write all 1's to BAR
+    bar.set(0xFFFF_FFFF);
+
+    // 5. Read back the value
+    let probed = bar.get();
+
+    // 6. Mask out the flag bits (lower 4 bits for memory BAR)
+    let masked = probed & 0xFFFF_FFF0;
+
+    // 7. Calculate size
+    let size = (!masked).wrapping_add(1);
+
+    // 8. Restore original BAR
+    bar.set(original_bar);
+
+    // 9. Restore original command register
+    command.set(original_cmd);
+
+    size
 }
+
+
 
 pub fn scan_pci_devices(base_addr: usize) {
     for bus in 0..=255 {
@@ -46,25 +274,34 @@ pub fn scan_pci_devices(base_addr: usize) {
                     continue;
                 }
 
-                let (class_code, subclass, device_id) = read_pci_class_id(cfg_addr);
-                info!(
-                    "Found PCI Device - Bus: {}, Device: {}, Function: {}, Class Code: {:#X}, Subclass: {:#X}, Device ID: {:#X}",
-                    bus,
-                    device,
-                    function,
-                    class_code,
-                    subclass,
-                    device_id
-                );
-                if class_code == 0x01 && subclass == 0x08 {
-                    // NVMe device found
-                    log::info!(
-                        "Found NVMe Device - Bus: {}, Device: {}, Function: {}, Device ID: {:#X}",
-                        bus,
-                        device,
-                        function,
-                        device_id
-                    );
+                let cfg: PciHeaderType0 = unsafe {
+                    core::ptr::read_volatile(cfg_addr as *const PciHeaderType0)
+                };
+                
+                // info!("{}", cfg);
+                
+                match PciDeviceType::new(&cfg) {
+                    Some(PciDeviceType::Nvme(nvme)) => {
+                        info!("Found NVMe PCI Device at {:02x}:{:02x}.{:x}", bus, device, function);
+                        // Enable interrupts, bus-mastering DMA, and memory space access in the PCI configuration space for the function.
+                        cfg.config.command.write(PciCommand::IRQ_ENABLE::SET);
+                        cfg.config.command.write(PciCommand::BUS_MASTER_ENABLE::SET);
+                        cfg.config.command.write(PciCommand::MEMORY_SPACE_ENABLE::SET);
+
+                        let mmio_base: u64 = crate::board::VirtAddrEnum::BAR0 as u64;
+                        cfg.bar[0].set((mmio_base & 0xFFFF_FFF0) as u32);
+                        // cfg.bar[1].set((mmio_base >> 32) as u32);
+                        // nvme_base_addr = (uint64_t)(((uint64_t)bar1 << 32) | (bar0 & 0xFFFFFFF0));
+                        let nvme_base_addr = ((cfg.bar[1].get() as u64) << 32) | ((cfg.bar[0].get() & 0xFFFF_FFF0) as u64);
+                        info!("  NVMe Base Address: {:016x}", nvme_base_addr);
+
+                        let nvme_ptr = nvme_base_addr as *mut NvmeDevice;
+                        let nvme_dev = unsafe { core::ptr::read_volatile(nvme_ptr) };
+                        info!("  NVMe Device Capabilities: {:016x}", nvme_dev.cap.get());
+                        info!("  NVMe Device Version: {:08x}", nvme_dev.vs.get());
+                    }
+                    Some(_) => {}
+                    None => {}
                 }
             }
         }

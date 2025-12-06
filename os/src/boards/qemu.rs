@@ -15,6 +15,7 @@ pub mod VirtAddrEnum {
     pub const UART0: usize = 0x1000_0000;
     pub const VIRTIO: usize = 0x1000_8000;
     pub const PLIC: usize = 0x0C00_0000;
+    pub const BAR0: usize = 0x2000_0000;
 }
 
 pub const CLOCK_FREQ: usize = 12500000;
@@ -26,6 +27,7 @@ pub const MMIO: &[(usize, usize)] = &[
     (VirtAddrEnum::VIRTIO, 0x00_1000),   // Virtio Block in virt machine
     (VirtAddrEnum::UART0, 0x100),        // uart0 in virt machine
     (VirtAddrEnum::PLIC, 0x210000),      // PLIC in virt machine
+    (VirtAddrEnum::BAR0, 0x1000),        // BAR0 in virt machine
 ];
 
 #[derive(FromRepr, Sequence, Clone, Copy)]
