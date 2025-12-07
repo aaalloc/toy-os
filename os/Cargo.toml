@@ -8,6 +8,7 @@ opt-level = 1
 debug = true
 
 [dependencies]
+pci_types = "0.10.0"
 tock-registers = "0.10.1"
 virtio-drivers = "0.12.0"
 nvme-driver = "0.3.1"

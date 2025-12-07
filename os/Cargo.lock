@@ -39,6 +39,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bit_field"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e4b40c7323adcfc0a41c4b88143ed58346ff65a288fc144329c5c45e05d70c6"
+
+[[package]]
 name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,6 +172,16 @@ dependencies = [
  "dma-api",
  "log",
  "tock-registers 0.9.0",
+]
+
+[[package]]
+name = "pci_types"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4325c6aa3cca3373503b1527e75756f9fbfe5fd76be4b4c8a143ee47430b8e0"
+dependencies = [
+ "bit_field",
+ "bitflags",
 ]
 
 [[package]]
@@ -316,6 +332,7 @@ dependencies = [
  "lazy_static",
  "log",
  "nvme-driver",
+ "pci_types",
  "riscv",
  "sbi-rt",
  "strum_macros",
