@@ -167,20 +167,23 @@ impl MemorySet {
             ),
             None,
         );
-        info!("mapping memory-mapped registers");
-        for pair in MMIO {
-            memory_set.push(
-                MapArea::new(
-                    VirtAddr((*pair).0),
-                    VirtAddr((*pair).0 + (*pair).1),
-                    MapType::Identical,
-                    MapPermission::R | MapPermission::W,
-                ),
-                None,
-            );
-        }
+
         memory_set
     }
+
+    pub fn map_mmio(&mut self, start_addr: usize, length: usize) {
+        info!("mapping MMIO: {:#x} - {:#x}", start_addr, start_addr + length);
+        self.push(
+            MapArea::new(
+                VirtAddr(start_addr),
+                VirtAddr(start_addr + length),
+                MapType::Identical,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+    }
+
     /// Include sections in elf and trampoline and TrapContext and user stack,
     /// also returns user_sp and entry point.
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {

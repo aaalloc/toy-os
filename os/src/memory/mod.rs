@@ -22,9 +22,18 @@ pub use page_table::{
     translated_byte_buffer, translated_ref, translated_refmut, translated_str, PageTableEntry,
 };
 pub use page_table::{PTEFlags, PageTable};
+
+use crate::board::MMIO;
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
     KERNEL_SPACE.exclusive_access().activate();
+
+    for pair in MMIO {
+        let (start_addr, length) = *pair;
+        KERNEL_SPACE.exclusive_access().map_mmio(start_addr, length);
+        KERNEL_SPACE.exclusive_access().activate();
+    }
+
 }

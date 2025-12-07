@@ -12,19 +12,21 @@ use tock_registers::register_structs;
 
 use tock_registers::register_bitfields;
 
+use crate::memory::KERNEL_SPACE;
+
 register_bitfields! {
     u16, 
     PciCommand [
         IO_SPACE OFFSET(0) NUMBITS(1) [],
-        MEMORY_SPACE_ENABLE OFFSET(1) NUMBITS(1) [],
-        BUS_MASTER_ENABLE OFFSET(2) NUMBITS(1) [],
+        MEMORY_SPACE OFFSET(1) NUMBITS(1) [],
+        BUS_MASTER OFFSET(2) NUMBITS(1) [],
         SPECIAL_CYCLES OFFSET(3) NUMBITS(1) [],
         MEM_WRITE_INVALIDATE OFFSET(4) NUMBITS(1) [],
         VGA_PALETTE_SNOOP OFFSET(5) NUMBITS(1) [],
         PARITY_ERROR_RESPONSE OFFSET(6) NUMBITS(1) [],
-        SERR_ENABLE OFFSET(8) NUMBITS(1) [],
+        SERR OFFSET(8) NUMBITS(1) [],
         FAST_BACK_TO_BACK_ENABLE OFFSET(9) NUMBITS(1) [],
-        IRQ_ENABLE OFFSET(10) NUMBITS(1) []
+        IRQ OFFSET(10) NUMBITS(1) []
     ],
 
     PciStatus [
@@ -42,25 +44,24 @@ register_bitfields! {
     ],
 }
 
-register_bitfields! [u32,
-    BAR [
-        // For memory BARs, bit 0 indicates memory or I/O
-        MEM_IO OFFSET(0) NUMBITS(1) [
-            Memory = 0,
-            IO = 1
+register_bitfields![u32,
+    Bar [
+        // Common BAR type fields
+        IO_MEM_SPACE OFFSET(0) NUMBITS(1) [
+            MEM = 0,
+            IO = 1,
         ],
-        // Bits 1-2: type for memory BAR (32-bit/64-bit/etc)
-        TYPE OFFSET(1) NUMBITS(2) [
-            Mem32 = 0,
-            Mem64 = 2,
+
+        MEM_TYPE OFFSET(1) NUMBITS(2) [
+            TYPE_32BIT = 0,
+            TYPE_64BIT = 2,
         ],
-        // Bit 3: prefetchable
-        PREFETCHABLE OFFSET(3) NUMBITS(1) [
-            NotPrefetchable = 0,
-            Prefetchable = 1
-        ],
-        // Bits 4..31: address (aligned naturally, lower bits masked when sizing)
-        ADDRESS OFFSET(4) NUMBITS(28) []
+
+        MEM_PREFETCHABLE OFFSET(3) NUMBITS(1) [],
+        MEM_BASE_ADDR   OFFSET(4) NUMBITS(27) [],
+
+
+        IO_BASE_ADDR OFFSET(2) NUMBITS(29) []
     ]
 ];
 
@@ -83,7 +84,7 @@ register_structs! {
     },
     pub PciHeaderType0 {
         (0x00 => pub config: PciConfig),
-        (0x10 => pub bar: [ReadWrite<u32>; 6]),
+        (0x10 => pub bar: [ReadWrite<u32, Bar::Register>; 6]),
         (0x28 => pub cis_pointer: ReadWrite<u32>),
         (0x2C => pub sub_vendor_id: ReadOnly<u16>),
         (0x2E => pub sub_device_id: ReadOnly<u16>),
@@ -130,7 +131,7 @@ impl Display for PciConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "PciConfig {{
+            "
     vendor_id: {:04x},
     device_id: {:04x},
     command: {:04x},
@@ -143,7 +144,7 @@ impl Display for PciConfig {
     latency_timer: {:02x},
     header_type: {:02x},
     bist: {:02x},
-}}",
+    ",
             self.vendor_id.get(),
             self.device_id.get(),
             self.command.get(),
@@ -165,7 +166,7 @@ impl Display for PciHeaderType0 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "PciHeaderType0 {{
+            "
     config: {},
     bar: [{:08x}, {:08x}, {:08x}, {:08x}, {:08x}, {:08x}],
     cis_pointer: {:08x},
@@ -177,7 +178,7 @@ impl Display for PciHeaderType0 {
     interrupt_pin: {:02x},
     min_grant: {:02x},
     max_latency: {:02x},
-}}",
+    ",
             self.config,
             self.bar[0].get(),
             self.bar[1].get(),
@@ -226,40 +227,6 @@ pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
 }
 
 
-pub fn probe_bar(bar: &ReadWrite<u32>, command: &ReadWrite<u16, PciCommand::Register>) -> u32 {
-    // 1. Save original BAR value
-    let original_bar = bar.get();
-
-    // 2. Save original command register
-    let original_cmd = command.get();
-
-    // 3. Disable memory and I/O decoding before probing
-    command.set(
-        original_cmd & !(PciCommand::MEMORY_SPACE_ENABLE.mask | PciCommand::IO_SPACE.mask)
-    );
-
-    // 4. Write all 1's to BAR
-    bar.set(0xFFFF_FFFF);
-
-    // 5. Read back the value
-    let probed = bar.get();
-
-    // 6. Mask out the flag bits (lower 4 bits for memory BAR)
-    let masked = probed & 0xFFFF_FFF0;
-
-    // 7. Calculate size
-    let size = (!masked).wrapping_add(1);
-
-    // 8. Restore original BAR
-    bar.set(original_bar);
-
-    // 9. Restore original command register
-    command.set(original_cmd);
-
-    size
-}
-
-
 
 pub fn scan_pci_devices(base_addr: usize) {
     for bus in 0..=255 {
@@ -283,22 +250,51 @@ pub fn scan_pci_devices(base_addr: usize) {
                 match PciDeviceType::new(&cfg) {
                     Some(PciDeviceType::Nvme(nvme)) => {
                         info!("Found NVMe PCI Device at {:02x}:{:02x}.{:x}", bus, device, function);
-                        // Enable interrupts, bus-mastering DMA, and memory space access in the PCI configuration space for the function.
-                        cfg.config.command.write(PciCommand::IRQ_ENABLE::SET);
-                        cfg.config.command.write(PciCommand::BUS_MASTER_ENABLE::SET);
-                        cfg.config.command.write(PciCommand::MEMORY_SPACE_ENABLE::SET);
+                        info!("Device Config: {}", cfg);
 
-                        let mmio_base: u64 = crate::board::VirtAddrEnum::BAR0 as u64;
-                        cfg.bar[0].set((mmio_base & 0xFFFF_FFF0) as u32);
+                        // Enable interrupts, bus-mastering DMA, and memory space access in the PCI configuration space for the function.
+                        cfg.config.command.write(PciCommand::IRQ::SET);
+                        cfg.config.command.write(PciCommand::BUS_MASTER::SET);
+                        cfg.config.command.write(PciCommand::MEMORY_SPACE::SET);
+                        cfg.config.command.write(PciCommand::IO_SPACE::SET);
+
+
+                        // 32 or 64bit memory space bar
+                        let bar0_type: Bar::MEM_TYPE::Value = cfg.bar[0].read_as_enum(Bar::MEM_TYPE).unwrap();
+                        assert_eq!(bar0_type, Bar::MEM_TYPE::Value::TYPE_64BIT);
+
+                        let something: Option<Bar::IO_MEM_SPACE::Value> = cfg.bar[0].read_as_enum(Bar::IO_MEM_SPACE);
+                        match something {
+                            Some(Bar::IO_MEM_SPACE::Value::IO) => info!("bar0 is io"),
+                            Some(Bar::IO_MEM_SPACE::Value::MEM) => info!("bar0 is mem"),
+                            None => panic!("not io or mem"),
+                        }
+
+                        // let bar0_prev = cfg.bar[0].get();
+                        // info!("  BAR0 Original Value: {:08x}", bar0_prev);
+                        // cfg.bar[0].set(0xFFFF_FFFF);    
+                        // let bar0_size = !(cfg.bar[0].get() & 0xFFFF_FFF0) + 1;
+                        // info!("  BAR0 Size: {:08x}, {}", bar0_size, bar0_size as usize); 
+                        // cfg.bar[0].set(bar0_prev);
+
+                        // now map the BAR0 to some MMIO region
+                        // let bar0_base_addr = 0x4000_0000;
+                        // KERNEL_SPACE.exclusive_access().map_mmio(
+                        //     bar0_base_addr,
+                        //     bar0_base_addr + bar0_size as usize
+                        // );
+
+                        // cfg.bar[0].set((mmio_base & 0xFFFF_FFF0) as u32);
                         // cfg.bar[1].set((mmio_base >> 32) as u32);
                         // nvme_base_addr = (uint64_t)(((uint64_t)bar1 << 32) | (bar0 & 0xFFFFFFF0));
                         let nvme_base_addr = ((cfg.bar[1].get() as u64) << 32) | ((cfg.bar[0].get() & 0xFFFF_FFF0) as u64);
                         info!("  NVMe Base Address: {:016x}", nvme_base_addr);
+                        info!("Device Config: {}", cfg);
 
-                        let nvme_ptr = nvme_base_addr as *mut NvmeDevice;
-                        let nvme_dev = unsafe { core::ptr::read_volatile(nvme_ptr) };
-                        info!("  NVMe Device Capabilities: {:016x}", nvme_dev.cap.get());
-                        info!("  NVMe Device Version: {:08x}", nvme_dev.vs.get());
+                        // let nvme_ptr = nvme_base_addr as *mut NvmeDevice;
+                        // let nvme_dev = unsafe { core::ptr::read_volatile(nvme_ptr) };
+                        // info!("  NVMe Device Capabilities: {:016x}", nvme_dev.cap.get());
+                        // info!("  NVMe Device Version: {:08x}", nvme_dev.vs.get());
                     }
                     Some(_) => {}
                     None => {}

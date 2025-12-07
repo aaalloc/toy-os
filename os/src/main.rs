@@ -242,8 +242,8 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
     // #[cfg(test)]
     // test_main();
     
-    scan_pci_devices(pci_base_address);
     memory::init();
+    scan_pci_devices(pci_base_address);
     UART.init();
     task::add_initproc();
     trap::enable_timer_interrupt();
