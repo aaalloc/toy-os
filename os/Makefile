@@ -84,7 +84,10 @@ QEMU_ARGS := -machine virt \
 			 -device virtio-blk-device,drive=x0 \
 			 -drive file=$(FS_IMG),if=none,format=raw,id=x0 \
 			 -device nvme,serial=deadbeef,drive=nvm \
-			 -drive file=$(FS_IMG_NVME),if=none,id=nvm,format=raw
+			 -drive file=$(FS_IMG_NVME),if=none,id=nvm,format=raw \
+			 -trace "pci*"
+
+
 
 QEMU_ARGS_NO_BOOTLOADER := -machine virt \
 			 -cpu rv64 \

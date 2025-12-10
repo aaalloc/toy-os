@@ -87,6 +87,15 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
+    pub fn alloc_addr(&self) -> VirtAddr {
+        if let Some(last_area) = self.areas.last() {
+            let start_addr = last_area.vpn_range.get_end().into();
+            return start_addr;
+        } else {
+            return VirtAddr(0);
+        }
+    }
+
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
         self.page_table.map(
@@ -172,11 +181,13 @@ impl MemorySet {
     }
 
     pub fn map_mmio(&mut self, start_addr: usize, length: usize) {
-        info!("mapping MMIO: {:#x} - {:#x}", start_addr, start_addr + length);
+        let start_va = VirtAddr(start_addr);
+        let end_va = VirtAddr(start_addr + length);
+        info!("mapping MMIO: {:?} - {:?}", start_va, end_va);
         self.push(
             MapArea::new(
-                VirtAddr(start_addr),
-                VirtAddr(start_addr + length),
+                start_va,
+                end_va,
                 MapType::Identical,
                 MapPermission::R | MapPermission::W,
             ),

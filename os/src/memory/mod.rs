@@ -36,4 +36,6 @@ pub fn init() {
         KERNEL_SPACE.exclusive_access().activate();
     }
 
+    // let test = KERNEL_SPACE.exclusive_access().alloc_addr();
+    // info!("Kernel space allocated addr: {:?}", test);
 }

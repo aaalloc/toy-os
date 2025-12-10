@@ -8,16 +8,15 @@ use log::info;
 
 use pci_types::{ConfigRegionAccess, EndpointHeader, HeaderType, PciAddress, PciHeader};
 use tock_registers::interfaces::{Readable, Writeable};
-use tock_registers::registers::{ReadOnly, ReadWrite};
 use tock_registers::register_structs;
+use tock_registers::registers::{ReadOnly, ReadWrite};
 
 use tock_registers::register_bitfields;
+use virtio_drivers::device;
 
 use crate::memory::KERNEL_SPACE;
 
-
-
-register_structs! { 
+register_structs! {
 
     // https://wiki.osdev.org/NVMe
     pub NvmeDevice {
@@ -43,7 +42,6 @@ register_structs! {
 
 }
 
-
 pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
     let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) else {
         info!("No pci-host-ecam-generic controller found");
@@ -64,10 +62,10 @@ impl ConfigRegionAccess for Pci {
     unsafe fn read(&self, address: PciAddress, offset: u16) -> u32 {
         unsafe {
             let addr = self.base_addr
-                + ((address.bus() as usize) << 20)
-                + ((address.device() as usize) << 15)
-                + ((address.function() as usize) << 12)
-                + (offset as usize);
+                | ((address.bus() as usize) << 20)
+                | ((address.device() as usize) << 15)
+                | ((address.function() as usize) << 12)
+                | (offset as usize);
             core::ptr::read_volatile(addr as *const u32)
         }
     }
@@ -75,63 +73,98 @@ impl ConfigRegionAccess for Pci {
     unsafe fn write(&self, address: PciAddress, offset: u16, value: u32) {
         unsafe {
             let addr = self.base_addr
-                + ((address.bus() as usize) << 20)
-                + ((address.device() as usize) << 15)
-                + ((address.function() as usize) << 12)
-                + (offset as usize);
+                | ((address.bus() as usize) << 20)
+                | ((address.device() as usize) << 15)
+                | ((address.function() as usize) << 12)
+                | (offset as usize);
             core::ptr::write_volatile(addr as *mut u32, value);
         }
     }
 }
 
-fn check_device(bus: u8, device: u8, pci: &Pci) {
-    let function = 0;
-    let address = PciAddress::new(0, bus, device, function);
-    let header = PciHeader::new(address);
-    let (vendor_id, device_id) = header.id(pci);
-    if vendor_id == 0xFFFF {
-        return;
+pub fn nvme_setup(endpoint: &mut EndpointHeader, pci: &Pci, address: PciAddress) {
+    endpoint.update_command(&pci, |command| {
+        command
+            | pci_types::CommandRegister::BUS_MASTER_ENABLE
+            | pci_types::CommandRegister::MEMORY_ENABLE
+    });
+
+    let cap = endpoint.capabilities(&pci);
+
+    let (vendor_id, device_id) = endpoint.header().id(pci);
+    let (bus, device, function) = (address.bus(), address.device(), address.function());
+    info!(
+        "-> Found NVMe device: {:04x}:{:04x} at {:02x}:{:02x}.{:x}",
+        vendor_id, device_id, bus, device, function
+    );
+    for c in cap {
+        info!("  -> Capability: {:?}", c);
     }
-    check_function(bus, device, function, pci);
-}
-
-fn check_function(bus: u8, device: u8, function: u8, pci: &Pci) {
-    let address = PciAddress::new(0, bus, device, function);
-    let header = PciHeader::new(address);
-    // (DeviceRevision, BaseClass, SubClass, Interface)
-    let (device_revision, base_class, sub_class, interface) =  header.revision_and_class(pci);
-    if base_class == 0x01 && sub_class == 0x08 {
-        info!("Found NVMe device at {:02x}:{:02x}.{:x}", bus, device, function);
-        let entry = header.header_type(pci);
-        match entry {
-            HeaderType::Endpoint => {
-                let mut header = EndpointHeader::from_header(header, pci).unwrap(); 
-                info!("  BAR0: {:?}", header.bar(0, pci).unwrap().unwrap_mem());
-                info!("  BAR1: {:?}", header.bar(1, pci).unwrap().unwrap_mem());
-                // Map BAR0
-                
-                // setting bar0_addr as MMIO
-                unsafe { let _ = header.write_bar(0, pci, 0x00ffe000usize); };
-                let (bar0_addr, bar0_size) = header.bar(0, pci).unwrap().unwrap_mem();
-                let (bar1_addr, bar1_size) = header.bar(1, pci).unwrap().unwrap_mem();
-
-                // nvme_base_addr = (uint64_t)(((uint64_t)bar1 << 32) | (bar0 & 0xFFFFFFF0));
-                let nvme_base_addr = ((bar1_addr as u64) << 32) | ((bar0_addr as u64) & 0xFFFFFFF0);
-                info!("  NVMe MMIO Base Address: {:#x}", nvme_base_addr);
-                // let nvme_mmio = unsafe { &mut *(nvme_base_addr as *mut NvmeDevice) };
-                // info!("  NVMe CAP: {:#x}", nvme_mmio.cap.get());
-            }
-            _ => {
-                info!("  Not a type 0 endpoint");
+    // TODO: select last addr instead of getting that and getting length also from reading bar
+    let addr = 0x4000_0000;
+    KERNEL_SPACE.exclusive_access().map_mmio(addr, 0x4000);
+    unsafe {
+        match endpoint.write_bar(0, &pci, addr) {
+            Ok(_) => {}
+            Err(e) => {
+                info!("Failed to write BAR0: {:?}", e);
             }
         }
-    }
+    };
+    let bar0 = endpoint.bar(0, &pci).unwrap();
+    info!("  -> BAR0 address: {:?}", bar0);
+    let addr_bar0 = bar0.unwrap_mem().0;
+    let nvme_dev = unsafe { &mut *(addr_bar0 as *mut NvmeDevice) };
+    let cap = nvme_dev.cap.get();
+    info!("  -> NVMe CAP: 0x{:x}", cap);
+    info!("    -> MQES: {}", (cap & 0xFFFF) + 1);
+    info!("    -> CQR: {}", (cap >> 16) & 0x1);
+    info!("    -> AMS: {}", (cap >> 17) & 0x7);
+    info!("    -> TO: {}", (cap >> 24) & 0xFF);
+    info!("    -> DSTRD: {}", (cap >> 32) & 0xF);
+    info!("    -> NVMSET: {}", (cap >> 48) & 0xFFFF);
+
+    // get serial device
+    let version = nvme_dev.vs.get();
+    info!(
+        "  -> NVMe Version: {}.{}.{}",
+        (version >> 16) & 0xFF,
+        (version >> 8) & 0xFF,
+        version & 0xFF
+    );
+    // More NVMe initialization would go here...
 }
 
 pub fn scan_pci_devices(base_addr: usize) {
-    for bus in 0..=255 {
-        for device in 0..32 {
-            check_device(bus, device, &Pci { base_addr });
+    for segment in 0..1 {
+        for bus in 0..=255 {
+            for device in 0..32 {
+                for function in 0..8 {
+                    let pci = Pci { base_addr };
+                    let address = PciAddress::new(segment, bus, device, function);
+                    let header = PciHeader::new(address);
+                    let (vendor_id, device_id) = header.id(&pci);
+                    if vendor_id == 0xFFFF {
+                        continue;
+                    }
+                    let (device_revision, base_class, sub_class, interface) =
+                        header.revision_and_class(&pci);
+                    // check if not nvme
+                    match &header.header_type(&pci) {
+                        HeaderType::Endpoint => {
+                            info!(
+                                "Found PCI Endpoint: {:04x}:{:04x} at {:02x}:{:02x}.{:x} - class: {:02x}, subclass: {:02x}, interface: {:02x}",
+                                vendor_id, device_id, bus, device, function, base_class, sub_class, interface
+                            );
+                            let mut endpoint = EndpointHeader::from_header(header, &pci).unwrap();
+                            if base_class == 0x01 && sub_class == 0x08 && interface == 0x02 {
+                                nvme_setup(&mut endpoint, &pci, address);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
         }
     }
 }

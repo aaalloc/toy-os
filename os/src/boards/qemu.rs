@@ -27,7 +27,7 @@ pub const MMIO: &[(usize, usize)] = &[
     (VirtAddrEnum::VIRTIO, 0x00_1000),   // Virtio Block in virt machine
     (VirtAddrEnum::UART0, 0x100),        // uart0 in virt machine
     (VirtAddrEnum::PLIC, 0x210000),      // PLIC in virt machine
-    (VirtAddrEnum::PCI, 0x10000000),     // PCIe in qemu virt machine
+    (VirtAddrEnum::PCI, 0x10000000),    // PCIe ECAM space
 ];
 
 #[derive(FromRepr, Sequence, Clone, Copy)]
