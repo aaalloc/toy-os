@@ -11,7 +11,6 @@ debug = true
 pci_types = "0.10.0"
 tock-registers = "0.10.1"
 virtio-drivers = "0.12.0"
-nvme-driver = "0.3.1"
 fdt = "0.1.2"
 easy-fs = { path = "../easy-fs" }
 riscv = "0.11.1"
