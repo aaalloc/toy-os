@@ -96,7 +96,8 @@ impl NVMeController {
         // Initialize the NVMe controller
         // For example, set up admin queues, enable the controller, etc.
         // This is a placeholder for actual initialization code.
-        todo!()
+        let v = self.version();
+        log::info!("NVMe Controller Version: {}.{}.{}", v.0, v.1, v.2);
     }
 
     pub fn version(&self) -> (u8, u8, u8) {
