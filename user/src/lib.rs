@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(linkage)]
 #![feature(alloc_error_handler)]
+#![feature(slice_ptr_len)]
 
 #[macro_use]
 pub mod console;
@@ -13,7 +14,6 @@ use core::cell::UnsafeCell;
 extern crate alloc;
 use alloc::vec::Vec;
 
-const USER_HEAP_SIZE: usize = 0x4000;
 struct HeapSpace<const SIZE: usize> {
     buf: UnsafeCell<[u8; SIZE]>,
 }
@@ -24,16 +24,21 @@ impl<const SIZE: usize> HeapSpace<SIZE> {
         }
     }
 
+    pub const fn size(&self) -> usize {
+        SIZE
+    }
+
     pub const fn as_ptr(&self) -> *mut u8 {
         self.buf.get() as *mut u8
     }
 }
 unsafe impl<const SIZE: usize> Sync for HeapSpace<SIZE> {}
 
+const USER_HEAP_SIZE: usize = 0x4000;
 static HEAP_SPACE: HeapSpace<USER_HEAP_SIZE> = HeapSpace::new();
 
 #[global_allocator]
-static HEAP: LockedHeap<32> = LockedHeap::empty();
+static HEAP: LockedHeap = LockedHeap::empty();
 
 #[alloc_error_handler]
 pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
@@ -45,7 +50,7 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     unsafe {
         HEAP.lock()
-            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
+            .init(HEAP_SPACE.as_ptr() as usize, HEAP_SPACE.size());
     }
     let mut v: Vec<&'static str> = Vec::new();
     for i in 0..argc {
