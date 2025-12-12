@@ -23,7 +23,7 @@ pub use page_table::{
 };
 pub use page_table::{PTEFlags, PageTable};
 
-use crate::board::MMIO;
+use crate::config::MMIO;
 /// initiate heap allocator, frame allocator and kernel space
 pub fn init() {
     heap_allocator::init_heap();
