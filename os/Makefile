@@ -14,8 +14,9 @@ ifeq ($(MODE), release)
 endif
 
 BOARD := qemu
-SBI ?= rustsbi
-BOOTLOADER := ../bootloader/$(SBI)-qemu.bin
+BOOTLOADER := /Users/yanovskyy/Downloads/opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin
+RVVM_BIN := /Users/yanovskyy/Documents/projects/RVVM/release.darwin.arm64/rvvm_arm64
+
 
 KERNEL_ENTRY_PA := 0x80200000
 
@@ -26,14 +27,13 @@ OBJCOPY := rust-objcopy --binary-architecture=riscv64
 DISASM ?= -x
 TEST ?=
 
+
 ENTRY_POINT=kmain
 ifeq ($(BOARD), qemu)
 	ENTRY_POINT := kmain
-else ifeq ($(BOARD), rv64gc-emu)
+else ifeq ($(BOARD), rvvm)
 	ENTRY_POINT := kmain
 else ifeq ($(BOARD), nobios)
-	ENTRY_POINT := start
-else ifeq ($(BOARD), rvemu)
 	ENTRY_POINT := start
 endif
 
@@ -105,14 +105,12 @@ ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS)
 else ifeq ($(BOARD), nobios)
 	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER)
-else ifeq ($(BOARD), rvemu)
-	@/home/yanovskyy/Documents/projects/rvemu-0.0.11/target/release/rvemu-cli -k $(KERNEL_BIN) -f $(FS_IMG)
-else ifeq ($(BOARD), rv64gc-emu)
-	@/home/yanovskyy/Documents/builds/rv64gc-emu/build/rv64gc_emu \
-		--bios /home/yanovskyy/Téléchargements/opensbi-1.7-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin \
-		--dtb /home/yanovskyy/Documents/projects/toy-os/os/rv64gc-emu.dtb \
-		--kernel $(KERNEL_BIN) \
-		--virtual-drive $(FS_IMG)
+else ifeq ($(BOARD), rvvm)
+	@$(RVVM_BIN) \
+	$(BOOTLOADER) \
+	-k $(KERNEL_BIN) \
+	-i $(FS_IMG_NVME) \
+	-nogui 
 endif
 
 gdbserver: build
