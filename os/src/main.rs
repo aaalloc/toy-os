@@ -24,7 +24,6 @@ mod trap;
 use crate::drivers::pcie::scan_pci_devices;
 use crate::drivers::{chardev::UartDevice, pcie::get_pci_base_address};
 extern crate alloc;
-use alloc::vec::Vec;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
 use fdt::Fdt;

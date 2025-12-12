@@ -1,6 +1,6 @@
 mod nvme;
 mod virtio_blk;
-pub use nvme::NVMeBlock;
+pub use nvme::NVMeController;
 pub use virtio_blk::VirtIOBlock;
 extern crate alloc;
 use alloc::sync::Arc;

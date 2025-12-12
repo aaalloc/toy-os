@@ -1,46 +1,11 @@
-use core::fmt::{Display, Formatter};
-use core::mem::offset_of;
-
-use alloc::fmt;
 use log::info;
 
 // https://pcisig.com/sites/default/files/files/PCI_Code-ID_r_1_11__v24_Jan_2019.pdf
 
 use pci_types::{ConfigRegionAccess, EndpointHeader, HeaderType, PciAddress, PciHeader};
-use tock_registers::interfaces::{Readable, Writeable};
-use tock_registers::register_structs;
-use tock_registers::registers::{ReadOnly, ReadWrite};
 
-use tock_registers::register_bitfields;
-use virtio_drivers::device;
-
+use crate::drivers::block::NVMeController;
 use crate::memory::KERNEL_SPACE;
-
-register_structs! {
-
-    // https://wiki.osdev.org/NVMe
-    pub NvmeDevice {
-        (0x00 => pub cap: ReadOnly<u64>),        // Controller Capabilities
-        (0x08 => pub vs: ReadOnly<u32>),         // Version
-        (0x0C => pub intms: ReadWrite<u32>),      // Interrupt Mask Set
-        (0x10 => pub intmc: ReadWrite<u32>),      // Interrupt Mask Clear
-        (0x14 => pub cc: ReadWrite<u32>),         // Controller Configuration
-        (0x18 => _rsvd1: [u8; 4]),
-        (0x1C => pub csts: ReadOnly<u32>),       // Controller Status
-        (0x20 => pub nssr: ReadWrite<u32>),       // NVM Subsystem Reset (optional)
-        (0x24 => pub aqa: ReadWrite<u32>),        // Admin Queue Attributes
-        (0x28 => pub asq: ReadWrite<u64>),        // Admin Submission Queue Base Address
-        (0x30 => pub acq: ReadWrite<u64>),        // Admin Completion Queue Base Address
-        // NOTE: not sure
-        (0x38 => pub cmbloc: ReadWrite<u32>),     // Controller Memory Buffer Location (optional)
-        (0x3C => pub cmbsz: ReadWrite<u32>),      // Controller Memory Buffer Size (optional)
-        (0x40 => pub bpinfo: ReadWrite<u32>),     // Boot Partition Information
-        (0x44 => pub bprsel: ReadWrite<u32>),     // Boot Partition Read Select
-        (0x48 => pub bpmbl: ReadWrite<u64>),      // Boot Partition Memory Buffer Location
-        (0x50 => @END),
-    }
-
-}
 
 pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
     let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) else {
@@ -114,24 +79,13 @@ pub fn nvme_setup(endpoint: &mut EndpointHeader, pci: &Pci, address: PciAddress)
     let bar0 = endpoint.bar(0, &pci).unwrap();
     info!("  -> BAR0 address: {:?}", bar0);
     let addr_bar0 = bar0.unwrap_mem().0;
-    let nvme_dev = unsafe { &mut *(addr_bar0 as *mut NvmeDevice) };
-    let cap = nvme_dev.cap.get();
-    info!("  -> NVMe CAP: 0x{:x}", cap);
-    info!("    -> MQES: {}", (cap & 0xFFFF) + 1);
-    info!("    -> CQR: {}", (cap >> 16) & 0x1);
-    info!("    -> AMS: {}", (cap >> 17) & 0x7);
-    info!("    -> TO: {}", (cap >> 24) & 0xFF);
-    info!("    -> DSTRD: {}", (cap >> 32) & 0xF);
-    info!("    -> NVMSET: {}", (cap >> 48) & 0xFFFF);
-
-    // get serial device
-    let version = nvme_dev.vs.get();
+    let nvme_dev = NVMeController::new(addr_bar0 as usize);
+    let version = nvme_dev.version();
     info!(
         "  -> NVMe Version: {}.{}.{}",
-        (version >> 16) & 0xFF,
-        (version >> 8) & 0xFF,
-        version & 0xFF
+        version.0, version.1, version.2
     );
+
     // More NVMe initialization would go here...
 }
 
@@ -147,8 +101,7 @@ pub fn scan_pci_devices(base_addr: usize) {
                     if vendor_id == 0xFFFF {
                         continue;
                     }
-                    let (device_revision, base_class, sub_class, interface) =
-                        header.revision_and_class(&pci);
+                    let (_, base_class, sub_class, interface) = header.revision_and_class(&pci);
                     // check if not nvme
                     match &header.header_type(&pci) {
                         HeaderType::Endpoint => {

@@ -3,7 +3,7 @@ use super::{frame_alloc, FrameTracker};
 use super::{PTEFlags, PageTable, PageTableEntry};
 use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::{StepByOne, VPNRange};
-use crate::config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
+use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
 use crate::println;
 use crate::sync::UPIntrFreeCell;
 use bitflags::bitflags;
@@ -87,6 +87,7 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
+
     pub fn alloc_addr(&self) -> VirtAddr {
         if let Some(last_area) = self.areas.last() {
             let start_addr = last_area.vpn_range.get_end().into();
