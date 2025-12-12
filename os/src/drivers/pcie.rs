@@ -5,8 +5,7 @@ use log::info;
 
 use pci_types::{ConfigRegionAccess, EndpointHeader, PciAddress, PciHeader};
 
-use crate::drivers::block::NVMeController;
-use crate::memory::KERNEL_SPACE;
+use crate::{drivers::block::nvme::NVMeDevice, memory::KERNEL_SPACE};
 
 pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
     let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) else {
@@ -25,7 +24,7 @@ pub struct Pci {
 }
 
 pub enum PciDevice {
-    NVMe(NVMeController),
+    NVMe(NVMeDevice),
     Other,
 }
 
@@ -104,7 +103,7 @@ pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
                                 address.function()
                             );
                             let nvme_base_addr = nvme_setup(&pci, header, address);
-                            let mut nvme = NVMeController::new(nvme_base_addr);
+                            let mut nvme = NVMeDevice::new(nvme_base_addr);
                             nvme.init();
                             devices.push(PciDevice::NVMe(nvme));
                         }

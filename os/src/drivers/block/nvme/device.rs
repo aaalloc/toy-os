@@ -1,64 +1,13 @@
-extern crate alloc;
-
-use easy_fs::BlockDevice;
 use tock_registers::{
     interfaces::Readable,
     register_structs,
     registers::{ReadOnly, ReadWrite},
 };
 
-use crate::sync::{Condvar, UPIntrFreeCell};
-use alloc::collections::BTreeMap;
-
-/// disable unused warnings for now
-
-#[allow(unused)]
-pub struct NVMeBlock {
-    nvme_blk: UPIntrFreeCell<u128>,
-    condvars: BTreeMap<u16, Condvar>,
-}
-
-#[allow(unused)]
-impl BlockDevice for NVMeBlock {
-    fn read_block(&self, block_id: usize, buf: &mut [u8]) {
-        todo!()
-    }
-
-    fn write_block(&self, block_id: usize, buf: &[u8]) {
-        todo!()
-    }
-
-    fn handle_irq(&self) {
-        todo!()
-    }
-}
-
-#[allow(unused)]
-impl NVMeBlock {
-    pub fn new() -> Self {
-        // first, we need to get PCIE, for that need to check file device tree
-        // NOTE: NVMe controllers can be found as PCI devices with class code 1 and subclass code 8.
-        // let nvme = Nvme::new(bar, config);
-        todo!()
-    }
-}
-
-#[allow(unused)]
-pub struct ControllerInfo {
-    pub vendor_id: u16,
-    pub product_id: u16,
-    pub sqes_max: u8,
-    pub sqes_min: u8,
-    pub cqes_max: u8,
-    pub cqes_min: u8,
-    pub max_cmd: u16,
-    pub number_of_namespaces: u32,
-}
-
 register_structs! {
 
     // https://wiki.osdev.org/NVMe
-    pub NvmeDevice {
+    pub NVMeRegisters {
         (0x00 => pub cap: ReadOnly<u64>),        // Controller Capabilities
         (0x08 => pub vs: ReadOnly<u32>),         // Version
         (0x0C => pub intms: ReadWrite<u32>),      // Interrupt Mask Set
@@ -81,15 +30,15 @@ register_structs! {
 
 }
 
-pub struct NVMeController {
-    nvme_dev: &'static mut NvmeDevice,
+pub struct NVMeDevice {
+    nvme_dev: &'static mut NVMeRegisters,
 }
 
 #[allow(unused)]
-impl NVMeController {
+impl NVMeDevice {
     pub fn new(addr_ptr: usize) -> Self {
-        let nvme_dev = unsafe { &mut *(addr_ptr as *mut NvmeDevice) };
-        NVMeController { nvme_dev }
+        let nvme_dev = unsafe { &mut *(addr_ptr as *mut NVMeRegisters) };
+        NVMeDevice { nvme_dev }
     }
 
     pub fn init(&mut self) {
