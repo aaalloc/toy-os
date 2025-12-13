@@ -114,6 +114,8 @@ else ifeq ($(BOARD), rvvm)
 	-nogui -nonet -nosound
 endif
 
+# not for myself in the future, i had to add nonet and nosound for making nvme working properly, otherwise ptr_addr is messed up
+
 gdbserver: build
 ifeq ($(BOARD), qemu)
 	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
