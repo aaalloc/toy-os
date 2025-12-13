@@ -32,22 +32,44 @@ pub struct NVMeCommand {
 }
 
 impl NVMeCommand {
-    pub fn create_io_completion_queue(c_id: u16, qid: u16, ptr: usize, size: u16) -> Self {
+    #[inline]
+    fn new(opcode: u8, c_id: u16) -> Self {
         Self {
-            opcode: 5,
-            flags: 0,
+            opcode,
             c_id,
-            ns_id: 0,
-            _rsvd: 0,
-            md_ptr: 0,
-            d_ptr: [ptr as u64, 0],
-            cdw10: ((size as u32) << 16) | (qid as u32),
-            cdw11: 1, // Physically Contiguous
-            cdw12: 0,
-            cdw13: 0,
-            cdw14: 0,
-            cdw15: 0,
+            ..Default::default()
         }
+    }
+
+    #[inline]
+    fn with_prp(mut self, ptr0: u64, ptr1: u64) -> Self {
+        self.d_ptr = [ptr0, ptr1];
+        self
+    }
+
+    #[inline]
+    fn with_cdw10(mut self, v: u32) -> Self {
+        self.cdw10 = v;
+        self
+    }
+
+    #[inline]
+    fn with_cdw11(mut self, v: u32) -> Self {
+        self.cdw11 = v;
+        self
+    }
+
+    #[inline]
+    fn with_ns_id(mut self, ns_id: u32) -> Self {
+        self.ns_id = ns_id;
+        self
+    }
+
+    pub fn create_io_completion_queue(c_id: u16, qid: u16, ptr: usize, size: u16) -> Self {
+        Self::new(0x05, c_id)
+            .with_prp(ptr as u64, 0)
+            .with_cdw10(((size as u32) << 16) | (qid as u32))
+            .with_cdw11(1)
     }
 
     pub fn create_io_submission_queue(
@@ -57,103 +79,41 @@ impl NVMeCommand {
         size: u16,
         cq_id: u16,
     ) -> Self {
-        Self {
-            opcode: 1,
-            flags: 0,
-            c_id,
-            ns_id: 0,
-            _rsvd: 0,
-            md_ptr: 0,
-            d_ptr: [ptr as u64, 0],
-            cdw10: ((size as u32) << 16) | (q_id as u32),
-            cdw11: ((cq_id as u32) << 16) | 1, /* Physically Contiguous */
-            //TODO: QPRIO
-            cdw12: 0, //TODO: NVMSETID
-            cdw13: 0,
-            cdw14: 0,
-            cdw15: 0,
-        }
+        // TODO: QPRIO and NVMESETID
+        Self::new(1, c_id)
+            .with_prp(ptr as u64, 0)
+            .with_cdw10(((size as u32) << 16) | (q_id as u32))
+            .with_cdw11(((cq_id as u32) << 16) | 1) // Physically Contiguous
     }
 
     pub fn delete_io_submission_queue(c_id: u16, q_id: u16) -> Self {
-        Self {
-            opcode: 0,
-            c_id,
-            cdw10: q_id as u32,
-            ..Default::default()
-        }
+        Self::new(0, c_id).with_cdw10(q_id as u32)
     }
 
     pub fn delete_io_completion_queue(c_id: u16, q_id: u16) -> Self {
-        Self {
-            opcode: 4,
-            c_id,
-            cdw10: q_id as u32,
-            ..Default::default()
-        }
+        Self::new(0x04, c_id).with_cdw10(q_id as u32)
     }
 
     pub fn identify_namespace(c_id: u16, ptr: usize, ns_id: u32) -> Self {
-        Self {
-            opcode: 6,
-            flags: 0,
-            c_id,
-            ns_id,
-            _rsvd: 0,
-            md_ptr: 0,
-            d_ptr: [ptr as u64, 0],
-            cdw10: 0,
-            cdw11: 0,
-            cdw12: 0,
-            cdw13: 0,
-            cdw14: 0,
-            cdw15: 0,
-        }
+        Self::new(6, c_id).with_ns_id(ns_id).with_prp(ptr as u64, 0)
     }
 
     pub fn identify_controller(c_id: u16, ptr: usize) -> Self {
-        Self {
-            opcode: 6,
-            flags: 0,
-            c_id,
-            ns_id: 0,
-            _rsvd: 0,
-            md_ptr: 0,
-            d_ptr: [ptr as u64, 0],
-            cdw10: 1,
-            cdw11: 0,
-            cdw12: 0,
-            cdw13: 0,
-            cdw14: 0,
-            cdw15: 0,
-        }
+        Self::new(6, c_id).with_prp(ptr as u64, 0).with_cdw10(1)
     }
 
     pub fn identify_namespace_list(c_id: u16, ptr: usize, base: u32) -> Self {
-        Self {
-            opcode: 6,
-            flags: 0,
-            c_id,
-            ns_id: base,
-            _rsvd: 0,
-            md_ptr: 0,
-            d_ptr: [ptr as u64, 0],
-            cdw10: 2,
-            cdw11: 0,
-            cdw12: 0,
-            cdw13: 0,
-            cdw14: 0,
-            cdw15: 0,
-        }
+        Self::new(6, c_id)
+            .with_prp(ptr as u64, 0)
+            .with_cdw10(2)
+            .with_ns_id(base)
     }
 
     pub fn get_features(c_id: u16, ptr: usize, fid: u8) -> Self {
-        Self {
-            opcode: 0xA,
-            d_ptr: [ptr as u64, 0],
-            cdw10: u32::from(fid), // TODO: SEL
-            ..Default::default()
-        }
+        // TODO: SEL
+        Self::new(0x0A, c_id)
+            .with_prp(ptr as u64, 0)
+            .with_cdw10(u32::from(fid))
     }
 
     pub fn io_read(c_id: u16, ns_id: u32, lba: u64, blocks_1: u16, ptr0: u64, ptr1: u64) -> Self {
