@@ -23,10 +23,10 @@ pub use page_table::{
 };
 pub use page_table::{PTEFlags, PageTable};
 
-use crate::board::MMIODevices;
+use crate::board::MMIORegions;
 
 /// initiate heap allocator, frame allocator and kernel space
-pub fn init(mmio_devices: &MMIODevices) {
+pub fn init(mmio_devices: &MMIORegions) {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
     KERNEL_SPACE.exclusive_access().activate();

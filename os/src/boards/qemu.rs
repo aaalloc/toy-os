@@ -13,34 +13,34 @@ use crate::drivers::{
 pub const CLOCK_FREQ: usize = 12500000;
 pub const MEMORY_END: usize = 0x8800_0000;
 pub type UartDeviceImpl = crate::drivers::chardev::NS16550a<0x1000_0000>;
-pub enum MMIODevice {
+pub enum MMIOType {
     Plic,
     Uart,
     Virtio,
     Pci,
 }
 
-impl core::fmt::Debug for MMIODevice {
+impl core::fmt::Debug for MMIOType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            MMIODevice::Plic => write!(f, "PLIC"),
-            MMIODevice::Uart => write!(f, "UART"),
-            MMIODevice::Virtio => write!(f, "VIRTIO"),
-            MMIODevice::Pci => write!(f, "PCI"),
+            MMIOType::Plic => write!(f, "PLIC"),
+            MMIOType::Uart => write!(f, "UART"),
+            MMIOType::Virtio => write!(f, "VIRTIO"),
+            MMIOType::Pci => write!(f, "PCI"),
         }
     }
 }
 
-pub struct MMIODevices {
+pub struct MMIORegions {
     plic: Option<MemoryRegion>,
     uart: Option<MemoryRegion>,
     virtio: Option<MemoryRegion>,
     pci: Option<MemoryRegion>,
 }
 
-impl MMIODevices {
+impl MMIORegions {
     pub fn empty() -> Self {
-        MMIODevices {
+        MMIORegions {
             plic: None,
             uart: None,
             virtio: None,
@@ -48,37 +48,37 @@ impl MMIODevices {
         }
     }
 
-    pub fn get_region(&self, device: MMIODevice) -> Option<&MemoryRegion> {
+    pub fn get_region(&self, device: MMIOType) -> Option<&MemoryRegion> {
         match device {
-            MMIODevice::Plic => self.plic.as_ref(),
-            MMIODevice::Uart => self.uart.as_ref(),
-            MMIODevice::Virtio => self.virtio.as_ref(),
-            MMIODevice::Pci => self.pci.as_ref(),
+            MMIOType::Plic => self.plic.as_ref(),
+            MMIOType::Uart => self.uart.as_ref(),
+            MMIOType::Virtio => self.virtio.as_ref(),
+            MMIOType::Pci => self.pci.as_ref(),
         }
     }
 
-    pub fn add_region(&mut self, device: MMIODevice, region: MemoryRegion) {
+    pub fn add_region(&mut self, device: MMIOType, region: MemoryRegion) {
         match device {
-            MMIODevice::Plic => self.plic = Some(region),
-            MMIODevice::Uart => self.uart = Some(region),
-            MMIODevice::Virtio => self.virtio = Some(region),
-            MMIODevice::Pci => self.pci = Some(region),
+            MMIOType::Plic => self.plic = Some(region),
+            MMIOType::Uart => self.uart = Some(region),
+            MMIOType::Virtio => self.virtio = Some(region),
+            MMIOType::Pci => self.pci = Some(region),
         }
     }
 
-    pub fn get_all_regions(&self) -> alloc::vec::Vec<(MMIODevice, &MemoryRegion)> {
+    pub fn get_all_regions(&self) -> alloc::vec::Vec<(MMIOType, &MemoryRegion)> {
         let mut regions = alloc::vec::Vec::new();
         if let Some(region) = &self.plic {
-            regions.push((MMIODevice::Plic, region));
+            regions.push((MMIOType::Plic, region));
         }
         if let Some(region) = &self.uart {
-            regions.push((MMIODevice::Uart, region));
+            regions.push((MMIOType::Uart, region));
         }
         if let Some(region) = &self.virtio {
-            regions.push((MMIODevice::Virtio, region));
+            regions.push((MMIOType::Virtio, region));
         }
         if let Some(region) = &self.pci {
-            regions.push((MMIODevice::Pci, region));
+            regions.push((MMIOType::Pci, region));
         }
         regions
     }
@@ -88,11 +88,11 @@ impl MMIODevices {
 
         // Example: UART
         if let Some(uart_node) = fdt.find_compatible(&["ns16550a"]) {
-            mmio_devices.add_region(MMIODevice::Uart, uart_node.reg().unwrap().next().unwrap());
+            mmio_devices.add_region(MMIOType::Uart, uart_node.reg().unwrap().next().unwrap());
         };
 
         if let Some(node) = fdt.find_compatible(&["virtio,mmio"]) {
-            mmio_devices.add_region(MMIODevice::Virtio, node.reg().unwrap().next().unwrap());
+            mmio_devices.add_region(MMIOType::Virtio, node.reg().unwrap().next().unwrap());
         };
 
         let plic_node = fdt
@@ -100,11 +100,11 @@ impl MMIODevices {
             .or_else(|| fdt.find_compatible(&["sifive,plic-1.0.0"]));
 
         if let Some(node) = plic_node {
-            mmio_devices.add_region(MMIODevice::Plic, node.reg().unwrap().next().unwrap());
+            mmio_devices.add_region(MMIOType::Plic, node.reg().unwrap().next().unwrap());
         }
 
         if let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) {
-            mmio_devices.add_region(MMIODevice::Pci, pci.reg().unwrap().next().unwrap());
+            mmio_devices.add_region(MMIOType::Pci, pci.reg().unwrap().next().unwrap());
         };
 
         mmio_devices
