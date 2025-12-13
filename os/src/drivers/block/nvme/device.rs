@@ -273,9 +273,8 @@ impl NVMeDevice {
 
     pub fn identify_controller(&mut self) -> Result<(), Box<dyn Error>> {
         info!("Trying to identify controller");
-        let _entry = self.submit_and_complete_admin(NVMeCommand::identify_controller);
+        self.submit_and_complete_admin(NVMeCommand::identify_controller)?;
 
-        info!("Dumping identify controller");
         let data = &self.buffer;
 
         let mut serial = String::from_utf8(data.as_slice()[4..24].to_vec()).unwrap();
@@ -283,7 +282,7 @@ impl NVMeDevice {
         let mut firmware = String::from_utf8(data.as_slice()[64..72].to_vec()).unwrap();
 
         info!(
-            "  - Model: {} Serial: {} Firmware: {}",
+            "  -> Model: {}, Serial: {}, Firmware: {}",
             model.trim(),
             serial.trim(),
             firmware.trim()
