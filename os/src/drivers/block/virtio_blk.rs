@@ -3,7 +3,6 @@ use core::panic;
 use core::ptr::NonNull;
 
 use super::BlockDevice;
-use crate::board::VirtAddrEnum;
 use crate::drivers::bus::virtio::VirtioHal;
 use crate::sync::{Condvar, UPIntrFreeCell};
 use crate::task::schedule;
@@ -94,7 +93,7 @@ impl VirtIOBlock<'_> {
     pub fn new() -> Self {
         let virtio_blk = {
             let mmio_size = 0x00_1000;
-            let header = NonNull::new(VirtAddrEnum::VIRTIO as *mut VirtIOHeader).unwrap();
+            let header = NonNull::new(0x1000_8000 as *mut VirtIOHeader).unwrap();
             let transport = match unsafe { MmioTransport::new(header, mmio_size) } {
                 Err(e) => {
                     warn!("Error creating VirtIO MMIO transport: {}", e);

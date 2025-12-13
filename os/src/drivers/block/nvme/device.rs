@@ -124,7 +124,6 @@ impl NVMeRegisters {
         }
     }
 
-    /// Sets Queue `qid` Tail Doorbell to `val`
     pub fn set_sq_tail(&mut self, qid: u16, val: u32) {
         let doorbell_base = 0x1000;
         let offset = doorbell_base + (qid as usize * 2 * 4);
@@ -183,7 +182,7 @@ impl NVMeDevice {
             buffer: Dma::new().unwrap(),
             q_id: 1,
         };
-
+        s.init();
         s
     }
 
@@ -191,44 +190,33 @@ impl NVMeDevice {
         &self.caps
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self) -> Result<(), Box<dyn Error>> {
         self.disable();
         self.setup_admin_queues();
-        // set completion and submission queue entry sizes
         let iosqes = size_of::<NVMeCommand>().trailing_zeros();
-        // should be 6 because 2^6 = 64 bytes
-        assert!(iosqes == 6);
+        assert!(iosqes == 6); // should be 6 because 2^6 = 64 bytes
         let iocqes = size_of::<NVMeCompletion>().trailing_zeros();
-        // should be 4 because 2^4 = 16 bytes
-        assert!(iocqes == 4);
+        assert!(iocqes == 4); // should be 4 because 2^4 = 16 bytes
         self.nvme_dev
             .cc
             .modify(CC::IOSQES.val(iosqes) + CC::IOCQES.val(iocqes));
 
         self.enable();
 
-        let q_id = self.q_id;
+        let qid = self.q_id;
         let addr = self.io_cq.get_addr();
         info!("Requesting i/o completion queue");
-        let comp = self
-            .submit_and_complete_admin(|c_id, _| {
-                NVMeCommand::create_io_completion_queue(c_id, q_id, addr, (QUEUE_LENGTH - 1) as u16)
-            })
-            .unwrap();
+        let comp = self.submit_and_complete_admin(|c_id, _| {
+            NVMeCommand::create_io_completion_queue(c_id, qid, addr, (QUEUE_LENGTH - 1) as u16)
+        })?;
+
         let addr = self.io_sq.get_addr();
         info!("Requesting i/o submission queue");
-        let comp = self
-            .submit_and_complete_admin(|c_id, _| {
-                NVMeCommand::create_io_submission_queue(
-                    c_id,
-                    q_id,
-                    addr,
-                    (QUEUE_LENGTH - 1) as u16,
-                    q_id,
-                )
-            })
-            .unwrap();
+        let comp = self.submit_and_complete_admin(|c_id, _| {
+            NVMeCommand::create_io_submission_queue(c_id, qid, addr, (QUEUE_LENGTH - 1) as u16, qid)
+        })?;
         self.q_id += 1;
+        Ok(())
     }
 
     fn disable(&mut self) {

@@ -1,6 +1,7 @@
 extern crate alloc;
 use enum_iterator::all;
 use enum_iterator_derive::Sequence;
+use fdt::{standard_nodes::MemoryRegion, Fdt};
 use strum_macros::FromRepr;
 
 use crate::drivers::{
@@ -9,26 +10,95 @@ use crate::drivers::{
     plic::{IntrTargetPriority, PLIC},
 };
 
-#[allow(non_snake_case, non_upper_case_globals)]
-pub mod VirtAddrEnum {
-    pub const VIRTTEST: usize = 0x0010_0000;
-    pub const UART0: usize = 0x1000_0000;
-    pub const VIRTIO: usize = 0x1000_8000;
-    pub const PLIC: usize = 0x0C00_0000;
-    pub const PCI: usize = 0x3000_0000;
-}
-
 pub const CLOCK_FREQ: usize = 12500000;
 pub const MEMORY_END: usize = 0x8800_0000;
-pub type UartDeviceImpl = crate::drivers::chardev::NS16550a<{ VirtAddrEnum::UART0 }>;
+pub type UartDeviceImpl = crate::drivers::chardev::NS16550a<0x1000_0000>;
+pub enum MMIODevice {
+    Plic,
+    Uart,
+    Virtio,
+    Pci,
+}
 
-pub const MMIO: &[(usize, usize)] = &[
-    (VirtAddrEnum::VIRTTEST, 0x00_2000), // VIRT_TEST/RTC  in virt machine
-    (VirtAddrEnum::VIRTIO, 0x00_1000),   // Virtio Block in virt machine
-    (VirtAddrEnum::UART0, 0x100),        // uart0 in virt machine
-    (VirtAddrEnum::PLIC, 0x210000),      // PLIC in virt machine
-    (VirtAddrEnum::PCI, 0x10000000),     // PCIe ECAM space
-];
+pub struct MMIODevices {
+    plic: Option<MemoryRegion>,
+    uart: Option<MemoryRegion>,
+    virtio: Option<MemoryRegion>,
+    pci: Option<MemoryRegion>,
+}
+
+impl MMIODevices {
+    pub fn empty() -> Self {
+        MMIODevices {
+            plic: None,
+            uart: None,
+            virtio: None,
+            pci: None,
+        }
+    }
+
+    pub fn get_region(&self, device: MMIODevice) -> Option<&MemoryRegion> {
+        match device {
+            MMIODevice::Plic => self.plic.as_ref(),
+            MMIODevice::Uart => self.uart.as_ref(),
+            MMIODevice::Virtio => self.virtio.as_ref(),
+            MMIODevice::Pci => self.pci.as_ref(),
+        }
+    }
+
+    pub fn add_region(&mut self, device: MMIODevice, region: MemoryRegion) {
+        match device {
+            MMIODevice::Plic => self.plic = Some(region),
+            MMIODevice::Uart => self.uart = Some(region),
+            MMIODevice::Virtio => self.virtio = Some(region),
+            MMIODevice::Pci => self.pci = Some(region),
+        }
+    }
+
+    pub fn get_all_regions(&self) -> alloc::vec::Vec<(MMIODevice, &MemoryRegion)> {
+        let mut regions = alloc::vec::Vec::new();
+        if let Some(region) = &self.plic {
+            regions.push((MMIODevice::Plic, region));
+        }
+        if let Some(region) = &self.uart {
+            regions.push((MMIODevice::Uart, region));
+        }
+        if let Some(region) = &self.virtio {
+            regions.push((MMIODevice::Virtio, region));
+        }
+        if let Some(region) = &self.pci {
+            regions.push((MMIODevice::Pci, region));
+        }
+        regions
+    }
+
+    pub fn collect_mmio_from_fdt(fdt: &Fdt) -> Self {
+        let mut mmio_devices = Self::empty();
+
+        // Example: UART
+        if let Some(uart_node) = fdt.find_compatible(&["ns16550a"]) {
+            mmio_devices.add_region(MMIODevice::Uart, uart_node.reg().unwrap().next().unwrap());
+        };
+
+        if let Some(node) = fdt.find_compatible(&["virtio,mmio"]) {
+            mmio_devices.add_region(MMIODevice::Virtio, node.reg().unwrap().next().unwrap());
+        };
+
+        let plic_node = fdt
+            .find_compatible(&["riscv,plic0"])
+            .or_else(|| fdt.find_compatible(&["sifive,plic-1.0.0"]));
+
+        if let Some(node) = plic_node {
+            mmio_devices.add_region(MMIODevice::Plic, node.reg().unwrap().next().unwrap());
+        }
+
+        if let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) {
+            mmio_devices.add_region(MMIODevice::Pci, pci.reg().unwrap().next().unwrap());
+        };
+
+        mmio_devices
+    }
+}
 
 #[derive(FromRepr, Sequence, Clone, Copy)]
 #[repr(u32)]
@@ -39,7 +109,7 @@ pub enum IrqEnum {
 
 pub fn device_init() {
     use riscv::register::sie;
-    let mut plic = unsafe { PLIC::new(VirtAddrEnum::PLIC) };
+    let mut plic = unsafe { PLIC::new(0xc000000) };
     let hart_id: usize = 0;
     let supervisor = IntrTargetPriority::Supervisor;
     let machine = IntrTargetPriority::Machine;
@@ -57,7 +127,7 @@ pub fn device_init() {
 }
 
 pub fn irq_handler() {
-    let mut plic = unsafe { PLIC::new(VirtAddrEnum::PLIC) };
+    let mut plic = unsafe { PLIC::new(0xc000000) };
     let irq_id = plic.claim(0, IntrTargetPriority::Supervisor);
     match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
         IrqEnum::BLOCK => BLOCK_DEVICE.handle_irq(),

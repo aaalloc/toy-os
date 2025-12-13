@@ -21,8 +21,9 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-use crate::drivers::pcie::scan_pci_devices;
-use crate::drivers::{chardev::UartDevice, pcie::get_pci_base_address};
+use crate::board::{MMIODevice, MMIODevices};
+use crate::drivers::chardev::UartDevice;
+use crate::drivers::pcie;
 extern crate alloc;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
@@ -227,22 +228,25 @@ unsafe fn parse_fdt(ptr: *const u8) -> Result<Fdt<'static>, fdt::FdtError> {
 
 #[no_mangle]
 pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
-    let e = fdt_ptr;
-    let fdt = unsafe { parse_fdt(e) };
-    if fdt.is_err() {
-        panic!("Failed to parse FDT: {:?}", fdt.err());
-    }
-    let pci_base_address = get_pci_base_address(&fdt.unwrap()).unwrap();
-
+    let fdt = unsafe { parse_fdt(fdt_ptr) }
+        .map_err(|e| {
+            panic!("Failed to parse FDT: {:?}", e);
+        })
+        .unwrap();
+    let mmio_devices = MMIODevices::collect_mmio_from_fdt(&fdt);
     clear_bss();
     init_fpu();
     logging::init();
-    trap::init();
-    // #[cfg(test)]
-    // test_main();
 
-    memory::init();
-    scan_pci_devices(pci_base_address);
+    trap::init();
+    memory::init(&mmio_devices);
+    // TODO: borrow mmio_devices
+    pcie::scan_pci_devices(
+        mmio_devices
+            .get_region(MMIODevice::Pci)
+            .unwrap()
+            .starting_address as usize,
+    );
     UART.init();
     task::add_initproc();
     trap::enable_timer_interrupt();

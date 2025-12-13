@@ -7,28 +7,16 @@ use pci_types::{ConfigRegionAccess, EndpointHeader, PciAddress, PciHeader};
 
 use crate::{drivers::block::nvme::NVMeDevice, memory::KERNEL_SPACE};
 
-pub fn get_pci_base_address(fdt: &fdt::Fdt) -> Result<usize, &'static str> {
-    let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) else {
-        info!("No pci-host-ecam-generic controller found");
-        return Err("No pci-host-ecam-generic controller found");
-    };
-
-    info!("Found PCIe ECAM root: {}", pci.name);
-
-    let reg = pci.reg().unwrap().next().unwrap();
-    Ok(reg.starting_address as usize)
-}
-
-pub struct Pci {
+pub struct PciAccess {
     base_addr: usize,
 }
 
 pub enum PciDevice {
-    NVMe(NVMeDevice),
+    NVMe(usize),
     Other,
 }
 
-impl ConfigRegionAccess for Pci {
+impl ConfigRegionAccess for PciAccess {
     unsafe fn read(&self, address: PciAddress, offset: u16) -> u32 {
         unsafe {
             let addr = self.base_addr
@@ -52,7 +40,7 @@ impl ConfigRegionAccess for Pci {
     }
 }
 
-pub fn nvme_setup(pci: &Pci, header: PciHeader, address: PciAddress) -> usize {
+fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> usize {
     let mut endpoint = EndpointHeader::from_header(header, pci).unwrap();
     endpoint.update_command(pci, |command| {
         command
@@ -77,23 +65,24 @@ pub fn nvme_setup(pci: &Pci, header: PciHeader, address: PciAddress) -> usize {
             }
             Err(e) => panic!("Failed to write BAR0: {:?}", e),
         }
-    };
+    }
 }
 
 pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
     let mut devices = Vec::<PciDevice>::new();
+    let pci_access: PciAccess = PciAccess { base_addr };
     for segment in 0..1 {
         for bus in 0..=255 {
             for device in 0..32 {
                 for function in 0..8 {
-                    let pci = Pci { base_addr };
                     let address = PciAddress::new(segment, bus, device, function);
                     let header = PciHeader::new(address);
-                    let (vendor_id, _) = header.id(&pci);
+                    let (vendor_id, _) = header.id(&pci_access);
                     if vendor_id == 0xFFFF {
                         continue;
                     }
-                    let (_, base_class, sub_class, prog_if) = header.revision_and_class(&pci);
+                    let (_, base_class, sub_class, prog_if) =
+                        header.revision_and_class(&pci_access);
                     match (base_class, sub_class, prog_if) {
                         (0x01, 0x08, 0x02) => {
                             info!(
@@ -102,11 +91,10 @@ pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
                                 address.device(),
                                 address.function()
                             );
-                            let nvme_base_addr = nvme_setup(&pci, header, address);
+                            let nvme_base_addr = nvme_setup(&pci_access, header, address);
                             let mut nvme = NVMeDevice::new(nvme_base_addr);
-                            nvme.init();
                             nvme.identify_controller().unwrap();
-                            devices.push(PciDevice::NVMe(nvme));
+                            devices.push(PciDevice::NVMe(nvme_base_addr));
                         }
                         _ => (),
                     }

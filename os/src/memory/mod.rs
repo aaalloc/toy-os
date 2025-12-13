@@ -23,19 +23,19 @@ pub use page_table::{
 };
 pub use page_table::{PTEFlags, PageTable};
 
-use crate::config::MMIO;
+use crate::board::MMIODevices;
+
 /// initiate heap allocator, frame allocator and kernel space
-pub fn init() {
+pub fn init(mmio_devices: &MMIODevices) {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
     KERNEL_SPACE.exclusive_access().activate();
 
-    for pair in MMIO {
-        let (start_addr, length) = *pair;
-        KERNEL_SPACE.exclusive_access().map_mmio(start_addr, length);
+    for (_, region) in mmio_devices.get_all_regions() {
+        KERNEL_SPACE.exclusive_access().map_mmio(
+            region.starting_address as usize,
+            region.size.expect("MMIO region must have size") as usize,
+        );
         KERNEL_SPACE.exclusive_access().activate();
     }
-
-    // let test = KERNEL_SPACE.exclusive_access().alloc_addr();
-    // info!("Kernel space allocated addr: {:?}", test);
 }
