@@ -99,7 +99,6 @@ impl alloc::fmt::Debug for NvmeCaps {
 impl NVMeRegisters {
     pub fn get_version(&self) -> (u8, u8, u8) {
         let vs = self.vs.get();
-        log::info!("NVMe Version Register: {:#X}", vs);
         (
             VS::Major.read(vs) as u8,
             VS::Minor.read(vs) as u8,
@@ -245,8 +244,6 @@ impl NVMeDevice {
     }
 
     fn setup_admin_queues(&mut self) {
-        // Set up admin submission and completion queues
-        // This is a placeholder for actual queue setup code.
         let aqa = ((self.admin_cq.size() as u32 - 1) << 16) | (self.admin_sq.size() as u32 - 1);
         self.nvme_dev.aqa.set(aqa);
         self.nvme_dev.asq.set(self.admin_sq.get_addr() as u64);
@@ -279,31 +276,11 @@ impl NVMeDevice {
         let _entry = self.submit_and_complete_admin(NVMeCommand::identify_controller);
 
         info!("Dumping identify controller");
-        let mut serial = String::new();
         let data = &self.buffer;
 
-        for &b in &data.as_slice()[4..24] {
-            if b == 0 {
-                break;
-            }
-            serial.push(b as char);
-        }
-
-        let mut model = String::new();
-        for &b in &data.as_slice()[24..64] {
-            if b == 0 {
-                break;
-            }
-            model.push(b as char);
-        }
-
-        let mut firmware = String::new();
-        for &b in &data.as_slice()[64..72] {
-            if b == 0 {
-                break;
-            }
-            firmware.push(b as char);
-        }
+        let mut serial = String::from_utf8(data.as_slice()[4..24].to_vec()).unwrap();
+        let mut model = String::from_utf8(data.as_slice()[24..64].to_vec()).unwrap();
+        let mut firmware = String::from_utf8(data.as_slice()[64..72].to_vec()).unwrap();
 
         info!(
             "  - Model: {} Serial: {} Firmware: {}",

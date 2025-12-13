@@ -109,8 +109,9 @@ else ifeq ($(BOARD), rvvm)
 	@$(RVVM_BIN) \
 	$(BOOTLOADER) \
 	-k $(KERNEL_BIN) \
-	-i $(FS_IMG_NVME) \
-	-nogui 
+	-nvme $(FS_IMG_NVME) \
+	-rv64 \
+	-nogui -nonet -nosound
 endif
 
 gdbserver: build

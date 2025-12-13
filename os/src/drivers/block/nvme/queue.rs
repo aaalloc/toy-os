@@ -45,7 +45,6 @@ impl NVMeSubmissionQueue {
 
     #[inline(always)]
     pub fn submit(&mut self, entry: NVMeCommand) -> usize {
-        // println!("SUBMISSION ENTRY: {:?}", entry);
         self.commands[self.tail] = entry;
 
         self.tail = (self.tail + 1) % self.len;
