@@ -20,6 +20,17 @@ pub enum MMIODevice {
     Pci,
 }
 
+impl core::fmt::Debug for MMIODevice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            MMIODevice::Plic => write!(f, "PLIC"),
+            MMIODevice::Uart => write!(f, "UART"),
+            MMIODevice::Virtio => write!(f, "VIRTIO"),
+            MMIODevice::Pci => write!(f, "PCI"),
+        }
+    }
+}
+
 pub struct MMIODevices {
     plic: Option<MemoryRegion>,
     uart: Option<MemoryRegion>,

@@ -240,12 +240,11 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
 
     trap::init();
     memory::init(&mmio_devices);
-    // TODO: borrow mmio_devices
     pcie::scan_pci_devices(
         mmio_devices
             .get_region(MMIODevice::Pci)
-            .unwrap()
-            .starting_address as usize,
+            .map(|region| region.starting_address as usize)
+            .unwrap(),
     );
     UART.init();
     task::add_initproc();
