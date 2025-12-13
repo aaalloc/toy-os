@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::drivers::block::nvme::{
     cmd::NVMeCommand,
     dma::{DMAError, Dma},

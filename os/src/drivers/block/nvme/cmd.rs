@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// NVMe Spec 4.2
 /// Submission queue entry
 #[derive(Clone, Copy, Debug, Default)]

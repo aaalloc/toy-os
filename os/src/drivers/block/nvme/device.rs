@@ -168,7 +168,11 @@ impl NVMeDevice {
 
         let caps = nvme_dev.read_capabilities();
         let mqes = caps.mqes;
-        log::info!("NVMe Capabilities: {:?}", caps);
+        log::info!("{:?}", caps);
+        assert!(
+            caps.supports_nvm,
+            "NVMe device does not support NVM command set"
+        );
         let mut s = NVMeDevice {
             nvme_dev,
             caps,

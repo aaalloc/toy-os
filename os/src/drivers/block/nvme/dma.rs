@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// thanks to https://github.com/rcore-os/virtio-drivers/blob/2e0beb35631e89742b3665104b7a08b521a15f2c/src/hal.rs#L91
 use crate::{
     config::PAGE_SIZE,
