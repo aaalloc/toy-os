@@ -88,15 +88,6 @@ impl MemorySet {
         self.areas.push(map_area);
     }
 
-    pub fn alloc_addr(&self) -> VirtAddr {
-        if let Some(last_area) = self.areas.last() {
-            let start_addr = last_area.vpn_range.get_end().into();
-            return start_addr;
-        } else {
-            return VirtAddr(0);
-        }
-    }
-
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
         self.page_table.map(

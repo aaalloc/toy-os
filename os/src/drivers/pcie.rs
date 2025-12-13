@@ -105,6 +105,7 @@ pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
                             let nvme_base_addr = nvme_setup(&pci, header, address);
                             let mut nvme = NVMeDevice::new(nvme_base_addr);
                             nvme.init();
+                            nvme.identify_controller().unwrap();
                             devices.push(PciDevice::NVMe(nvme));
                         }
                         _ => (),
