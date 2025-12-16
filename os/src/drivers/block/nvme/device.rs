@@ -160,7 +160,7 @@ pub struct NVMeDevice {
 
 #[allow(unused)]
 impl NVMeDevice {
-    pub fn new(addr_ptr: usize) -> Self {
+    pub fn new(addr_ptr: usize) -> Result<Self, Box<dyn Error>> {
         let nvme_dev = unsafe { &mut *(addr_ptr as *mut NVMeRegisters) };
         let v = nvme_dev.get_version();
         log::info!("NVMe Controller Version: {}.{}.{}", v.0, v.1, v.2);
@@ -175,15 +175,15 @@ impl NVMeDevice {
         let mut s = NVMeDevice {
             nvme_dev,
             caps,
-            admin_sq: NVMeSubmissionQueue::new(0).unwrap(),
-            admin_cq: NVMeCompletionQueue::new(0).unwrap(),
-            io_sq: NVMeSubmissionQueue::new(0).unwrap(),
-            io_cq: NVMeCompletionQueue::new(0).unwrap(),
-            buffer: Dma::new().unwrap(),
+            admin_sq: NVMeSubmissionQueue::new(0)?,
+            admin_cq: NVMeCompletionQueue::new(0)?,
+            io_sq: NVMeSubmissionQueue::new(0)?,
+            io_cq: NVMeCompletionQueue::new(0)?,
+            buffer: Dma::new()?,
             q_id: 1,
         };
-        s.init();
-        s
+        s.init()?;
+        Ok(s)
     }
 
     pub const fn caps(&self) -> &NvmeCaps {

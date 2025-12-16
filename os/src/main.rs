@@ -21,7 +21,7 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-use crate::board::{MMIORegions, MMIOType};
+use crate::drivers::block::BlockDeviceManager;
 use crate::drivers::chardev::UartDevice;
 use crate::drivers::pcie;
 extern crate alloc;
@@ -233,20 +233,17 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
             panic!("Failed to parse FDT: {:?}", e);
         })
         .unwrap();
-    let mmio_devices = MMIORegions::collect_mmio_from_fdt(&fdt);
     clear_bss();
     init_fpu();
     logging::init();
 
     trap::init();
-    memory::init(&mmio_devices);
-    pcie::scan_pci_devices(
-        mmio_devices
-            .get_region(MMIOType::Pci)
-            .map(|region| region.starting_address as usize)
-            .unwrap(),
-    );
+    memory::init_allocators();
+    board::find_mmio_regions(&fdt);
+    memory::init_mmio_regions();
+    pcie::scan_pci_devices();
     UART.init();
+    BlockDeviceManager::init();
     task::add_initproc();
     trap::enable_timer_interrupt();
     // timer::set_next_trigger();

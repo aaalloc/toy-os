@@ -8,7 +8,7 @@ use crate::{
     },
     sync::UPIntrFreeCell,
 };
-use alloc::vec::Vec;
+use alloc::{fmt, vec::Vec};
 use core::ops::{Index, IndexMut};
 use core::{marker::PhantomData, ptr::NonNull};
 use lazy_static::lazy_static;
@@ -150,3 +150,13 @@ impl<T, const N: usize> IndexMut<usize> for Dma<[T; N]> {
 pub enum DMAError {
     AllocationFailed,
 }
+
+impl fmt::Display for DMAError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DMAError::AllocationFailed => write!(f, "DMA allocation failed"),
+        }
+    }
+}
+
+impl core::error::Error for DMAError {}

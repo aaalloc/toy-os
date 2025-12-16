@@ -3,6 +3,7 @@ use core::panic;
 use core::ptr::NonNull;
 
 use super::BlockDevice;
+use crate::board::MemoryRegion;
 use crate::drivers::bus::virtio::VirtioHal;
 use crate::sync::{Condvar, UPIntrFreeCell};
 use crate::task::schedule;
@@ -90,10 +91,11 @@ impl<'a> BlockDevice for VirtIOBlock<'static> {
 }
 
 impl VirtIOBlock<'_> {
-    pub fn new() -> Self {
+    pub fn new(memory_region: &MemoryRegion) -> Self {
         let virtio_blk = {
-            let mmio_size = 0x00_1000;
-            let header = NonNull::new(0x1000_8000 as *mut VirtIOHeader).unwrap();
+            let mmio_size = memory_region.length;
+            let mmio_addr = memory_region.starting_address;
+            let header = NonNull::new(mmio_addr as *mut VirtIOHeader).unwrap();
             let transport = match unsafe { MmioTransport::new(header, mmio_size) } {
                 Err(e) => {
                     warn!("Error creating VirtIO MMIO transport: {}", e);

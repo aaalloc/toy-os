@@ -8,14 +8,15 @@ use lazy_static::lazy_static;
 use log::info;
 
 use crate::{
-    drivers::block::BLOCK_DEVICE, memory::UserBuffer, sync::UPIntrFreeCell, task::current_task,
+    drivers::block::BlockDeviceManager, memory::UserBuffer, sync::UPIntrFreeCell,
+    task::current_task,
 };
 
 use super::{Dirent, DirentType, File};
 
 lazy_static! {
     pub static ref ROOT_INODE: Arc<Inode> = {
-        let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
+        let efs = EasyFileSystem::open(BlockDeviceManager::get().clone());
         Arc::new(EasyFileSystem::root_inode(&efs))
     };
 }

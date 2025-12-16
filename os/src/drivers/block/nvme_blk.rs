@@ -4,14 +4,15 @@ use crate::{
     drivers::block::nvme::NVMeDevice,
     sync::{Condvar, UPIntrFreeCell},
 };
-use alloc::collections::BTreeMap;
+use alloc::{boxed::Box, collections::BTreeMap};
+use core::error::Error;
 use easy_fs::BlockDevice;
 
 /// disable unused warnings for now
 
 #[allow(unused)]
 pub struct NVMeBlock {
-    nvme_blk: UPIntrFreeCell<u128>,
+    nvme_blk: UPIntrFreeCell<NVMeDevice>,
     condvars: BTreeMap<u16, Condvar>,
 }
 
@@ -30,12 +31,18 @@ impl BlockDevice for NVMeBlock {
     }
 }
 
-#[allow(unused)]
 impl NVMeBlock {
-    pub fn new(nvme_device: NVMeDevice) -> Self {
-        // first, we need to get PCIE, for that need to check file device tree
-        // NOTE: NVMe controllers can be found as PCI devices with class code 1 and subclass code 8.
-        // let nvme = Nvme::new(bar, config);
-        todo!()
+    pub fn new(base_addr: usize) -> Result<Self, Box<dyn Error>> {
+        match NVMeDevice::new(base_addr) {
+            Ok(mut nvme) => {
+                nvme.identify_controller()?;
+                Err("sdfkljdsajkfhasfjaskfh".into())
+                // Ok(NVMeBlock {
+                //     nvme_blk: unsafe { UPIntrFreeCell::new(nvme) },
+                //     condvars: BTreeMap::new(),
+                // })
+            }
+            Err(_) => Err("Failed to create NVMeBlock".into()),
+        }
     }
 }

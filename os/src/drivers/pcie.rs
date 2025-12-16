@@ -1,19 +1,52 @@
-use alloc::vec::Vec;
+use alloc::string::{String, ToString};
+use hashbrown::HashMap;
 use log::info;
 
 // https://pcisig.com/sites/default/files/files/PCI_Code-ID_r_1_11__v24_Jan_2019.pdf
 
 use pci_types::{ConfigRegionAccess, EndpointHeader, PciAddress, PciHeader};
+use spin::Once;
 
-use crate::{drivers::block::nvme::NVMeDevice, memory::KERNEL_SPACE};
+use crate::{
+    board::{MMIOType, MMIO_REGIONS},
+    memory::KERNEL_SPACE,
+};
+
+static PCI_REGISTRY: Once<PcieRegistry> = Once::new();
 
 pub struct PciAccess {
     base_addr: usize,
 }
 
-pub enum PciDevice {
+pub enum PcieDevice {
     NVMe(usize),
     Other,
+}
+
+#[derive(Default)]
+pub struct PcieRegistry {
+    devices: HashMap<String, PcieDevice>,
+}
+
+impl PcieRegistry {
+    pub fn init(devices: HashMap<String, PcieDevice>) {
+        PCI_REGISTRY.call_once(|| PcieRegistry { devices });
+    }
+
+    pub fn get() -> &'static Self {
+        PCI_REGISTRY.get().expect("PCI registry not initialized")
+    }
+
+    pub fn device(&self, key: &str) -> Option<&PcieDevice> {
+        self.devices.get(key)
+    }
+
+    pub fn nvme(&self, key: &str) -> Option<usize> {
+        match self.device(key) {
+            Some(PcieDevice::NVMe(addr)) => Some(*addr),
+            _ => None,
+        }
+    }
 }
 
 impl ConfigRegionAccess for PciAccess {
@@ -68,9 +101,17 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> usize 
     }
 }
 
-pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
-    let mut devices = Vec::<PciDevice>::new();
+pub fn scan_pci_devices() {
+    let base_addr = MMIO_REGIONS
+        .get()
+        .unwrap()
+        .get_region(MMIOType::Pci)
+        .unwrap()
+        .starting_address;
     let pci_access: PciAccess = PciAccess { base_addr };
+
+    let mut pci_devices: HashMap<String, PcieDevice> = HashMap::new();
+
     for segment in 0..1 {
         for bus in 0..=255 {
             for device in 0..32 {
@@ -91,10 +132,10 @@ pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
                                 address.device(),
                                 address.function()
                             );
-                            let nvme_base_addr = nvme_setup(&pci_access, header, address);
-                            let mut nvme = NVMeDevice::new(nvme_base_addr);
-                            nvme.identify_controller().unwrap();
-                            devices.push(PciDevice::NVMe(nvme_base_addr));
+                            pci_devices.insert(
+                                "nvme0".to_string(),
+                                PcieDevice::NVMe(nvme_setup(&pci_access, header, address)),
+                            );
                         }
                         _ => (),
                     }
@@ -102,5 +143,6 @@ pub fn scan_pci_devices(base_addr: usize) -> Vec<PciDevice> {
             }
         }
     }
-    devices
+
+    PcieRegistry::init(pci_devices);
 }
