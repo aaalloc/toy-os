@@ -19,12 +19,6 @@ pub struct BlockDeviceManager;
 
 impl BlockDeviceManager {
     pub fn init() {
-        let virtio = MMIO_REGIONS
-            .get()
-            .expect("MMIO not initialized")
-            .get_region(MMIOType::Virtio)
-            .expect("Virtio MMIO missing");
-
         let nvme_addr = PcieRegistry::get()
             .nvme("nvme0")
             .expect("No NVMe device found");
@@ -33,6 +27,11 @@ impl BlockDeviceManager {
             Ok(nvme) => Arc::new(nvme),
             Err(e) => {
                 error!("NVMe init failed: {}", e);
+                let virtio = MMIO_REGIONS
+                    .get()
+                    .expect("MMIO not initialized")
+                    .get_region(MMIOType::Virtio)
+                    .expect("Virtio MMIO missing");
                 Arc::new(VirtIOBlock::new(virtio))
             }
         };

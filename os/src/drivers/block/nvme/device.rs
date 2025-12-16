@@ -147,6 +147,49 @@ impl NVMeRegisters {
     }
 }
 
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+#[allow(unused)]
+struct IdentifyNamespaceData {
+    pub nsze: u64,
+    pub ncap: u64,
+    nuse: u64,
+    nsfeat: u8,
+    pub nlbaf: u8,
+    pub flbas: u8,
+    mc: u8,
+    dpc: u8,
+    dps: u8,
+    nmic: u8,
+    rescap: u8,
+    fpi: u8,
+    dlfeat: u8,
+    nawun: u16,
+    nawupf: u16,
+    nacwu: u16,
+    nabsn: u16,
+    nabo: u16,
+    nabspf: u16,
+    noiob: u16,
+    nvmcap: u128,
+    npwg: u16,
+    npwa: u16,
+    npdg: u16,
+    npda: u16,
+    nows: u16,
+    _rsvd1: [u8; 18],
+    anagrpid: u32,
+    _rsvd2: [u8; 3],
+    nsattr: u8,
+    nvmsetid: u16,
+    endgid: u16,
+    nguid: [u8; 16],
+    eui64: u64,
+    pub lba_format_support: [u32; 16],
+    _rsvd3: [u8; 192],
+    vendor_specific: [u8; 3712],
+}
+
 pub struct NVMeDevice {
     nvme_dev: &'static mut NVMeRegisters,
     caps: NvmeCaps,
@@ -281,5 +324,52 @@ impl NVMeDevice {
         );
 
         Ok(())
+    }
+
+    pub fn identify_namespace_list(&mut self, base: u32) -> alloc::vec::Vec<u32> {
+        self.submit_and_complete_admin(|c_id, addr| {
+            NVMeCommand::identify_namespace_list(c_id, addr, base)
+        });
+
+        let data: &[u32] = unsafe {
+            core::slice::from_raw_parts(self.buffer.vaddr(0).as_ptr() as *const u32, QUEUE_LENGTH)
+        };
+
+        data.iter()
+            .copied()
+            .take_while(|&id| id != 0)
+            .collect::<alloc::vec::Vec<u32>>()
+    }
+
+    pub fn identify_namespace(&mut self, id: u32) {
+        self.submit_and_complete_admin(|c_id, addr| {
+            NVMeCommand::identify_namespace(c_id, addr, id)
+        });
+
+        let namespace_data: IdentifyNamespaceData =
+            unsafe { *(self.buffer.vaddr(0).as_ptr() as *const IdentifyNamespaceData) };
+
+        let size = namespace_data.nsze;
+        let blocks = namespace_data.ncap;
+
+        // figure out block size
+        let flba_idx = (namespace_data.flbas & 0xF) as usize;
+        let flba_data = (namespace_data.lba_format_support[flba_idx] >> 16) & 0xFF;
+        let block_size = if !(9..32).contains(&flba_data) {
+            0
+        } else {
+            1 << flba_data
+        };
+
+        // TODO: check metadata?
+        log::info!("Namespace {id}, Size: {size}, Blocks: {blocks}, Block size: {block_size}, total size: {}", blocks * block_size as u64);
+
+        // let namespace = NvmeNamespace {
+        //     id,
+        //     blocks,
+        //     block_size,
+        // };
+        // self.namespaces.insert(id, namespace);
+        // namespace
     }
 }
