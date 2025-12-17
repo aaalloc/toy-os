@@ -1,6 +1,6 @@
 use core::error::Error;
 
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String};
 use log::info;
 use tock_registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
@@ -13,6 +13,8 @@ use crate::drivers::block::nvme::{
     dma::Dma,
     queue::{NVMeCompletion, NVMeCompletionQueue, NVMeSubmissionQueue, QUEUE_LENGTH},
 };
+
+// https://files.futurememorystorage.com/proceedings/2013/20130812_PreConfD_Marks.pdf
 
 register_bitfields! [
     // First parameter is the register width. Can be u8, u16, u32, or u64.
@@ -190,6 +192,21 @@ struct IdentifyNamespaceData {
     vendor_specific: [u8; 3712],
 }
 
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+#[allow(unused)]
+pub struct NVMeNamespace {
+    pub id: u32,
+    pub blocks: u64,
+    pub block_size: u64,
+}
+
+impl NVMeNamespace {
+    pub fn size_bytes(&self) -> u64 {
+        self.blocks * self.block_size
+    }
+}
+
 pub struct NVMeDevice {
     nvme_dev: &'static mut NVMeRegisters,
     caps: NvmeCaps,
@@ -197,7 +214,8 @@ pub struct NVMeDevice {
     admin_cq: NVMeCompletionQueue,
     io_sq: NVMeSubmissionQueue,
     io_cq: NVMeCompletionQueue,
-    buffer: Dma<[u8; 2 * 1024 * 1024]>, // 2 MiB buffer
+    buffer: Dma<[u8; 2 * 1024]>, // 2 MiB buffer
+    ns: BTreeMap<u32, NVMeNamespace>,
     q_id: u16,
 }
 
@@ -224,8 +242,16 @@ impl NVMeDevice {
             io_cq: NVMeCompletionQueue::new(0)?,
             buffer: Dma::new()?,
             q_id: 1,
+            ns: BTreeMap::new(),
         };
         s.init()?;
+        for id in s.identify_namespace_list(0) {
+            let ns = s.identify_namespace(id);
+            log::info!("{:?}, total_size: {}", ns, ns.size_bytes());
+            s.ns.insert(id, ns);
+        }
+        s.identify_controller()?;
+
         Ok(s)
     }
 
@@ -341,7 +367,7 @@ impl NVMeDevice {
             .collect::<alloc::vec::Vec<u32>>()
     }
 
-    pub fn identify_namespace(&mut self, id: u32) {
+    pub fn identify_namespace(&mut self, id: u32) -> NVMeNamespace {
         self.submit_and_complete_admin(|c_id, addr| {
             NVMeCommand::identify_namespace(c_id, addr, id)
         });
@@ -361,15 +387,10 @@ impl NVMeDevice {
             1 << flba_data
         };
 
-        // TODO: check metadata?
-        log::info!("Namespace {id}, Size: {size}, Blocks: {blocks}, Block size: {block_size}, total size: {}", blocks * block_size as u64);
-
-        // let namespace = NvmeNamespace {
-        //     id,
-        //     blocks,
-        //     block_size,
-        // };
-        // self.namespaces.insert(id, namespace);
-        // namespace
+        NVMeNamespace {
+            id,
+            blocks,
+            block_size: block_size,
+        }
     }
 }

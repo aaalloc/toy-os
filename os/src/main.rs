@@ -3,6 +3,7 @@
 #![feature(alloc_error_handler)]
 #![feature(custom_test_frameworks)]
 #![feature(slice_ptr_get)]
+#![feature(slice_pattern)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 

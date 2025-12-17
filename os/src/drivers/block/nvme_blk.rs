@@ -76,13 +76,7 @@ impl BlockDevice for NVMeBlock {
 impl NVMeBlock {
     pub fn new(base_addr: usize) -> Result<Self, Box<dyn Error>> {
         match NVMeDevice::new(base_addr) {
-            Ok(mut nvme) => {
-                nvme.identify_controller()?;
-                let ns = nvme.identify_namespace_list(0);
-                for n in ns {
-                    log::info!("ns_id: {n}");
-                    nvme.identify_namespace(n);
-                }
+            Ok(nvme) => {
                 Ok(NVMeBlock {
                     nvme_blk: unsafe { UPIntrFreeCell::new(nvme) },
                     // theres only on queue to survey, the completion queue
