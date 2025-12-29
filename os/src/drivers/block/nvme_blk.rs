@@ -9,11 +9,9 @@ use alloc::boxed::Box;
 use core::error::Error;
 use easy_fs::BlockDevice;
 
-/// disable unused warnings for now
-
-#[allow(unused)]
 pub struct NVMeBlock {
     nvme_blk: UPIntrFreeCell<NVMeDevice>,
+    doing_io: UPIntrFreeCell<bool>,
     condvar: Condvar,
 }
 
@@ -21,22 +19,48 @@ pub struct NVMeBlock {
 impl BlockDevice for NVMeBlock {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
+        // log::info!(
+        //     "NVMe read_block {} requested for block {}",
+        //     if nb { "async" } else { "sync" },
+        //     block_id
+        // );
         if nb {
-            // async
-            todo!()
+            self.doing_io.exclusive_access().clone_from(&true);
+            self.nvme_blk
+                .exclusive_access()
+                .send_io_read(1, block_id as u64, 1 as u16);
+            let task_cx_ptr = self.condvar.wait_no_sched();
+            crate::task::schedule(task_cx_ptr);
+            let mut status = 0u16;
+            self.nvme_blk.exclusive_session(|nvme| {
+                match status {
+                    0 => {
+                        // TODO: there shouldn't be a transfer here
+                        let data = nvme.retrieve_dma_buffer(buf.len());
+                        buf.copy_from_slice(&data[..]);
+                    }
+                    _ => {
+                        panic!("NVMe read_block failed with status: {}", status);
+                    }
+                }
+            });
         } else {
-            let mut test = self.nvme_blk.exclusive_access();
-            // 1 => 512 bytes
-            // TODO: there shouldn't be a transfer here
-            let data = test.read_sync(1, block_id as u64, 1 as u16);
-            match data {
-                Ok(data) => {
-                    buf.copy_from_slice(&data[..]);
+            self.nvme_blk.exclusive_session(|nvme| {
+                let mut status = 0u16;
+                // 1 => 512 bytes
+                nvme.send_io_read(1, block_id as u64, 1 as u16)
+                    .io_complete_command(&mut status);
+                match status {
+                    0 => {
+                        // TODO: there shouldn't be a transfer here
+                        let data = nvme.retrieve_dma_buffer(buf.len());
+                        buf.copy_from_slice(&data[..]);
+                    }
+                    _ => {
+                        panic!("NVMe read_block failed with status: {}", status);
+                    }
                 }
-                Err(e) => {
-                    panic!("NVMe read error: {:?}", e);
-                }
-            }
+            });
         }
     }
 
@@ -52,7 +76,23 @@ impl BlockDevice for NVMeBlock {
     }
 
     fn handle_irq(&self) {
-        todo!()
+        // NOTE: doing this is I think stupid but from what i've seen, irq is fired before read_block is called
+        if self.doing_io.exclusive_access().clone() == false {
+            log::warn!("NVMe IRQ received but no IO in progress");
+            return;
+        }
+        let mut status = 0u16;
+        self.condvar.signal();
+        self.nvme_blk.exclusive_session(|nvme| {
+            nvme.io_complete_command(&mut status);
+            // log::info!("NVMe IRQ handled successfully");
+            match status {
+                0 => {}
+                _ => {
+                    panic!("NVMe IRQ handling failed with status: {}", status);
+                }
+            }
+        });
     }
 }
 
@@ -62,6 +102,7 @@ impl NVMeBlock {
             Ok(nvme) => {
                 Ok(NVMeBlock {
                     nvme_blk: unsafe { UPIntrFreeCell::new(nvme) },
+                    doing_io: unsafe { UPIntrFreeCell::new(false) },
                     // theres only on queue to survey, the completion queue
                     condvar: Condvar::new(),
                 })

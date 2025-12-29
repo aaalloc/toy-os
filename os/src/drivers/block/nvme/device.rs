@@ -251,7 +251,6 @@ impl NVMeDevice {
             s.ns.insert(id, ns);
         }
         s.identify_controller()?;
-
         Ok(s)
     }
 
@@ -284,7 +283,7 @@ impl NVMeDevice {
         let comp = self.submit_and_complete_admin(|c_id, _| {
             NVMeCommand::create_io_submission_queue(c_id, qid, addr, (QUEUE_LENGTH - 1) as u16, qid)
         })?;
-        self.q_id += 1;
+        // self.q_id += 1;
         Ok(())
     }
 
@@ -394,14 +393,7 @@ impl NVMeDevice {
         }
     }
 
-    pub fn read_sync(
-        &mut self,
-        ns_id: u32,
-        lba: u64,
-        num_blocks: u16,
-    ) -> Result<&[u8], Box<dyn Error>> {
-        let ns = self.ns.get(&ns_id).ok_or("Namespace not found")?;
-
+    pub fn send_io_read(&mut self, ns_id: u32, lba: u64, num_blocks: u16) -> &mut Self {
         let cid = self.io_sq.tail as u16;
         let tail = self.io_sq.submit(NVMeCommand::io_read(
             cid,
@@ -411,19 +403,20 @@ impl NVMeDevice {
             self.buffer.paddr().0 as u64,
             0,
         ));
-        // TODO: self.q_id is wrong, it is 2 but should be 1
-        self.nvme_dev.set_sq_tail(1, tail as u32);
+        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
 
+        self
+    }
+
+    pub fn io_complete_command(&mut self, status: &mut u16) -> &mut Self {
         let (head, entry, _) = self.io_cq.complete_spin();
-        self.nvme_dev.set_cq_head(1, head as u32);
+        self.nvme_dev.set_cq_head(self.q_id, head as u32);
 
-        let status = entry.status >> 1;
-        if status != 0 {
-            info!("I/O command failed with status: {}", status);
-            return Err(alloc::format!("I/O command failed with status: {}", status).into());
-        }
+        *status = entry.status >> 1;
+        self
+    }
 
-        let size = (num_blocks as u64) * ns.block_size;
-        Ok(&self.buffer.as_slice()[0..size as usize])
+    pub fn retrieve_dma_buffer(&self, size: usize) -> &[u8] {
+        &self.buffer.as_slice()[0..size]
     }
 }

@@ -83,6 +83,12 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> usize 
 
     let (vendor_id, device_id) = endpoint.header().id(pci);
     let (bus, device, function) = (address.bus(), address.device(), address.function());
+
+    // TODO: register interupt line or pin so that we can register it to plic
+    let (pin, line) = endpoint.interrupt(pci);
+    info!("   Interrupt Line: {}", line);
+    info!("   Interrupt Pin: {}", pin);
+
     info!(
         "-> Found NVMe device: {:04x}:{:04x} at {:02x}:{:02x}.{:x}",
         vendor_id, device_id, bus, device, function

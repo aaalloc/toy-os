@@ -111,6 +111,10 @@ impl MMIORegions {
                     length: uart_node.reg().unwrap().next().unwrap().size.unwrap() as usize,
                 },
             );
+            log::info!(
+                "uart irq number: {}",
+                uart_node.interrupts().unwrap().next().unwrap()
+            );
         };
 
         if let Some(node) = fdt.find_compatible(&["virtio,mmio"]) {
@@ -154,8 +158,11 @@ impl MMIORegions {
 #[derive(FromRepr, Sequence, Clone, Copy)]
 #[repr(u32)]
 pub enum IrqEnum {
-    BLOCK = 8,
-    UART = 10,
+    // for qemu, normally 0 ??
+    NVME_BLOCK = 2,
+    VIRTIO_BLOCK = 8,
+    // for qemu, 10
+    UART = 7,
 }
 
 pub fn device_init() {
@@ -181,7 +188,7 @@ pub fn irq_handler() {
     let mut plic = unsafe { PLIC::new(0xc000000) };
     let irq_id = plic.claim(0, IntrTargetPriority::Supervisor);
     match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
-        IrqEnum::BLOCK => BlockDeviceManager::get().handle_irq(),
+        IrqEnum::NVME_BLOCK | IrqEnum::VIRTIO_BLOCK => BlockDeviceManager::get().handle_irq(),
         IrqEnum::UART => UART.handle_irq(),
     }
     plic.complete(0, IntrTargetPriority::Supervisor, irq_id);

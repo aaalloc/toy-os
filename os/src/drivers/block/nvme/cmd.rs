@@ -67,10 +67,12 @@ impl NVMeCommand {
     }
 
     pub fn create_io_completion_queue(c_id: u16, qid: u16, ptr: usize, size: u16) -> Self {
+        let cdw11_flag = (1 << 0) // Physically Contiguous 
+        | (1 << 1); // interrupts enabled
         Self::new(0x05, c_id)
             .with_prp(ptr as u64, 0)
             .with_cdw10(((size as u32) << 16) | (qid as u32))
-            .with_cdw11(1)
+            .with_cdw11(cdw11_flag)
     }
 
     pub fn create_io_submission_queue(
