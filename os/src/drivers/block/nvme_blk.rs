@@ -25,36 +25,19 @@ impl BlockDevice for NVMeBlock {
             // async
             todo!()
         } else {
-            // sync
-            todo!()
+            let mut test = self.nvme_blk.exclusive_access();
+            // 1 => 512 bytes
+            // TODO: there shouldn't be a transfer here
+            let data = test.read_sync(1, block_id as u64, 1 as u16);
+            match data {
+                Ok(data) => {
+                    buf.copy_from_slice(&data[..]);
+                }
+                Err(e) => {
+                    panic!("NVMe read error: {:?}", e);
+                }
+            }
         }
-        // if nb {
-        //     let mut req = BlkReq::default();
-        //     let mut resp = BlkResp::default();
-        //     let mut token = 0u16;
-        //     let task_cx_ptr = self.virtio_blk.exclusive_session(|blk| {
-        //         token = unsafe {
-        //             blk.read_blocks_nb(block_id, &mut req, buf, &mut resp)
-        //                 .unwrap()
-        //         };
-        //         self.condvars.get(&token).unwrap().wait_no_sched()
-        //     });
-
-        //     schedule(task_cx_ptr);
-        //     unsafe {
-        //         self.virtio_blk
-        //             .exclusive_session(|blk| {
-        //                 blk.complete_write_blocks(token, &mut req, buf, &mut resp)
-        //             })
-        //             .expect("Error when writing VirtIOBlk");
-        //     }
-        // } else {
-        //     self.virtio_blk
-        //         .exclusive_access()
-        //         .read_blocks(block_id, buf)
-        //         .expect("VirtIOBlk read error");
-        // }
-        todo!()
     }
 
     fn write_block(&self, block_id: usize, buf: &[u8]) {
