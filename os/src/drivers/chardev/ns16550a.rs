@@ -2,6 +2,7 @@
 ///! Ref: ns16550a datasheet: https://datasheetspdf.com/pdf-file/605590/NationalSemiconductor/NS16550A/1
 ///! Ref: ns16450 datasheet: https://datasheetspdf.com/pdf-file/1311818/NationalSemiconductor/NS16450/1
 use super::UartDevice;
+use crate::drivers::plic::PlicDevice;
 use crate::sync::{/*Condvar,*/ Condvar, UPIntrFreeCell};
 use crate::task::schedule;
 extern crate alloc;
@@ -154,6 +155,27 @@ impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
     }
 }
 
+impl<const BASE_ADDR: usize> PlicDevice for NS16550a<BASE_ADDR> {
+    fn irq_id(&self) -> usize {
+        //     // for qemu, 10
+        //     UART = 7,
+        7
+    }
+
+    fn irq_handler(&self) {
+        let mut count = 0;
+        self.inner.exclusive_session(|inner| {
+            while let Some(ch) = inner.ns16550a.read() {
+                count += 1;
+                inner.read_buffer.push_back(ch);
+            }
+        });
+        if count > 0 {
+            self.condvar.signal();
+        }
+    }
+}
+
 impl<const BASE_ADDR: usize> UartDevice for NS16550a<BASE_ADDR> {
     fn init(&self) {
         let mut inner = self.inner.exclusive_access();
@@ -177,17 +199,5 @@ impl<const BASE_ADDR: usize> UartDevice for NS16550a<BASE_ADDR> {
     fn write(&self, ch: u8) {
         let mut inner = self.inner.exclusive_access();
         inner.ns16550a.write(ch);
-    }
-    fn handle_irq(&self) {
-        let mut count = 0;
-        self.inner.exclusive_session(|inner| {
-            while let Some(ch) = inner.ns16550a.read() {
-                count += 1;
-                inner.read_buffer.push_back(ch);
-            }
-        });
-        if count > 0 {
-            self.condvar.signal();
-        }
     }
 }

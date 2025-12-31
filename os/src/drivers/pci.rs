@@ -12,38 +12,39 @@ use crate::{
     memory::KERNEL_SPACE,
 };
 
-static PCI_REGISTRY: Once<PcieRegistry> = Once::new();
+static PCI_REGISTRY: Once<PciRegistry> = Once::new();
 
 pub struct PciAccess {
     base_addr: usize,
 }
 
-pub enum PcieDevice {
-    NVMe(usize),
+#[derive(Debug)]
+pub enum PciDevice {
+    NVMe(usize, usize), // (base addr, irq line)
     Other,
 }
 
 #[derive(Default)]
-pub struct PcieRegistry {
-    devices: HashMap<String, PcieDevice>,
+pub struct PciRegistry {
+    devices: HashMap<String, PciDevice>,
 }
 
-impl PcieRegistry {
-    pub fn init(devices: HashMap<String, PcieDevice>) {
-        PCI_REGISTRY.call_once(|| PcieRegistry { devices });
+impl PciRegistry {
+    pub fn init(devices: HashMap<String, PciDevice>) {
+        PCI_REGISTRY.call_once(|| PciRegistry { devices });
     }
 
     pub fn get() -> &'static Self {
         PCI_REGISTRY.get().expect("PCI registry not initialized")
     }
 
-    pub fn device(&self, key: &str) -> Option<&PcieDevice> {
+    pub fn device(&self, key: &str) -> Option<&PciDevice> {
         self.devices.get(key)
     }
 
-    pub fn nvme(&self, key: &str) -> Option<usize> {
+    pub fn nvme(&self, key: &str) -> Option<(usize, usize)> {
         match self.device(key) {
-            Some(PcieDevice::NVMe(addr)) => Some(*addr),
+            Some(PciDevice::NVMe(addr, irq)) => Some((*addr, *irq)),
             _ => None,
         }
     }
@@ -73,7 +74,7 @@ impl ConfigRegionAccess for PciAccess {
     }
 }
 
-fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> usize {
+fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize, usize) {
     let mut endpoint = EndpointHeader::from_header(header, pci).unwrap();
     endpoint.update_command(pci, |command| {
         command
@@ -100,7 +101,7 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> usize 
         match endpoint.write_bar(0, &pci, addr) {
             Ok(_) => {
                 let bar0 = endpoint.bar(0, &pci).unwrap();
-                return bar0.unwrap_mem().0;
+                return (bar0.unwrap_mem().0, line as usize);
             }
             Err(e) => panic!("Failed to write BAR0: {:?}", e),
         }
@@ -116,7 +117,7 @@ pub fn scan_pci_devices() {
         .starting_address;
     let pci_access: PciAccess = PciAccess { base_addr };
 
-    let mut pci_devices: HashMap<String, PcieDevice> = HashMap::new();
+    let mut pci_devices: HashMap<String, PciDevice> = HashMap::new();
 
     for segment in 0..1 {
         for bus in 0..=255 {
@@ -138,10 +139,9 @@ pub fn scan_pci_devices() {
                                 address.device(),
                                 address.function()
                             );
-                            pci_devices.insert(
-                                "nvme0".to_string(),
-                                PcieDevice::NVMe(nvme_setup(&pci_access, header, address)),
-                            );
+                            let (base_addr, irq_line) = nvme_setup(&pci_access, header, address);
+                            pci_devices
+                                .insert("nvme0".to_string(), PciDevice::NVMe(base_addr, irq_line));
                         }
                         _ => (),
                     }
@@ -150,5 +150,5 @@ pub fn scan_pci_devices() {
         }
     }
 
-    PcieRegistry::init(pci_devices);
+    PciRegistry::init(pci_devices);
 }

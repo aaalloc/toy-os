@@ -4,7 +4,9 @@ use core::ptr::NonNull;
 
 use super::BlockDevice;
 use crate::board::MemoryRegion;
+use crate::drivers::block::BlockDeviceTmp;
 use crate::drivers::bus::virtio::VirtioHal;
+use crate::drivers::plic::PlicDevice;
 use crate::sync::{Condvar, UPIntrFreeCell};
 use crate::task::schedule;
 use crate::DEV_NON_BLOCKING_ACCESS;
@@ -19,6 +21,19 @@ pub struct VirtIOBlock<'a> {
     virtio_blk: UPIntrFreeCell<VirtIOBlk<VirtioHal, MmioTransport<'a>>>,
     condvars: BTreeMap<u16, Condvar>,
 }
+
+impl<'a> PlicDevice for VirtIOBlock<'static> {
+    fn irq_id(&self) -> usize {
+        // hardcoded for qemu
+        8
+    }
+
+    fn irq_handler(&self) {
+        self.handle_irq();
+    }
+}
+
+impl BlockDeviceTmp for VirtIOBlock<'static> {}
 
 impl<'a> BlockDevice for VirtIOBlock<'static> {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {

@@ -4,13 +4,12 @@ pub use ns16550a::NS16550a;
 extern crate alloc;
 use alloc::sync::Arc;
 
-use crate::board::UartDeviceImpl;
+use crate::{board::UartDeviceImpl, drivers::plic::PlicDevice};
 
-pub trait UartDevice {
+pub trait UartDevice: PlicDevice {
     fn init(&self);
     fn read(&self) -> u8;
     fn write(&self, ch: u8);
-    fn handle_irq(&self);
 }
 
 lazy_static! {

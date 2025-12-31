@@ -1,7 +1,10 @@
 extern crate alloc;
 
 use crate::{
-    drivers::block::nvme::NVMeDevice,
+    drivers::{
+        block::{nvme::NVMeDevice, BlockDeviceTmp},
+        plic::PlicDevice,
+    },
     sync::{Condvar, UPIntrFreeCell},
     DEV_NON_BLOCKING_ACCESS,
 };
@@ -15,7 +18,20 @@ pub struct NVMeBlock {
     condvar: Condvar,
 }
 
+impl BlockDeviceTmp for NVMeBlock {}
+
 #[allow(unused)]
+impl PlicDevice for NVMeBlock {
+    fn irq_id(&self) -> usize {
+        // for qemu, normally 0 ??
+        2
+    }
+
+    fn irq_handler(&self) {
+        self.handle_irq();
+    }
+}
+
 impl BlockDevice for NVMeBlock {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
@@ -31,18 +47,11 @@ impl BlockDevice for NVMeBlock {
                 .send_io_read(1, block_id as u64, 1 as u16);
             let task_cx_ptr = self.condvar.wait_no_sched();
             crate::task::schedule(task_cx_ptr);
-            let mut status = 0u16;
+            // TODO: currently handler ACK completion, so we just retrieve data here. This has to be done here
             self.nvme_blk.exclusive_session(|nvme| {
-                match status {
-                    0 => {
-                        // TODO: there shouldn't be a transfer here
-                        let data = nvme.retrieve_dma_buffer(buf.len());
-                        buf.copy_from_slice(&data[..]);
-                    }
-                    _ => {
-                        panic!("NVMe read_block failed with status: {}", status);
-                    }
-                }
+                // TODO: there shouldn't be a transfer here
+                let data = nvme.retrieve_dma_buffer(buf.len());
+                buf.copy_from_slice(&data[..]);
             });
         } else {
             self.nvme_blk.exclusive_session(|nvme| {
@@ -82,12 +91,10 @@ impl BlockDevice for NVMeBlock {
             return;
         }
         let mut status = 0u16;
-        self.condvar.signal();
         self.nvme_blk.exclusive_session(|nvme| {
             nvme.io_complete_command(&mut status);
-            // log::info!("NVMe IRQ handled successfully");
             match status {
-                0 => {}
+                0 => self.condvar.signal(),
                 _ => {
                     panic!("NVMe IRQ handling failed with status: {}", status);
                 }

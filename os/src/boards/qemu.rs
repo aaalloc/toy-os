@@ -1,14 +1,11 @@
 extern crate alloc;
 use alloc::sync::Arc;
-use enum_iterator::all;
-use enum_iterator_derive::Sequence;
 use fdt::Fdt;
-use strum_macros::FromRepr;
 
 use crate::drivers::{
     block::BlockDeviceManager,
     chardev::{UartDevice, UART},
-    plic::{IntrTargetPriority, PLIC},
+    plic::{IntrTargetPriority, PlicDevice, PLIC},
 };
 
 use spin::Once;
@@ -19,7 +16,7 @@ pub type UartDeviceImpl = crate::drivers::chardev::NS16550a<0x1000_0000>;
 pub enum MMIOType {
     Plic,
     Uart,
-    Virtio,
+    VirtioBlk,
     Pci,
 }
 
@@ -30,17 +27,6 @@ pub fn find_mmio_regions(fdt: &Fdt) {
     MMIO_REGIONS.call_once(|| Arc::new(regions));
 }
 
-impl core::fmt::Debug for MMIOType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            MMIOType::Plic => write!(f, "PLIC"),
-            MMIOType::Uart => write!(f, "UART"),
-            MMIOType::Virtio => write!(f, "VIRTIO"),
-            MMIOType::Pci => write!(f, "PCI"),
-        }
-    }
-}
-
 pub struct MemoryRegion {
     pub starting_address: usize,
     pub length: usize,
@@ -49,7 +35,7 @@ pub struct MemoryRegion {
 pub struct MMIORegions {
     plic: Option<MemoryRegion>,
     uart: Option<MemoryRegion>,
-    virtio: Option<MemoryRegion>,
+    virtio_blk: Option<MemoryRegion>,
     pci: Option<MemoryRegion>,
 }
 
@@ -58,7 +44,7 @@ impl MMIORegions {
         MMIORegions {
             plic: None,
             uart: None,
-            virtio: None,
+            virtio_blk: None,
             pci: None,
         }
     }
@@ -67,7 +53,7 @@ impl MMIORegions {
         match device {
             MMIOType::Plic => self.plic.as_ref(),
             MMIOType::Uart => self.uart.as_ref(),
-            MMIOType::Virtio => self.virtio.as_ref(),
+            MMIOType::VirtioBlk => self.virtio_blk.as_ref(),
             MMIOType::Pci => self.pci.as_ref(),
         }
     }
@@ -76,7 +62,7 @@ impl MMIORegions {
         match device {
             MMIOType::Plic => self.plic = Some(region),
             MMIOType::Uart => self.uart = Some(region),
-            MMIOType::Virtio => self.virtio = Some(region),
+            MMIOType::VirtioBlk => self.virtio_blk = Some(region),
             MMIOType::Pci => self.pci = Some(region),
         }
     }
@@ -89,8 +75,8 @@ impl MMIORegions {
         if let Some(region) = &self.uart {
             regions.push((MMIOType::Uart, region));
         }
-        if let Some(region) = &self.virtio {
-            regions.push((MMIOType::Virtio, region));
+        if let Some(region) = &self.virtio_blk {
+            regions.push((MMIOType::VirtioBlk, region));
         }
         if let Some(region) = &self.pci {
             regions.push((MMIOType::Pci, region));
@@ -119,7 +105,7 @@ impl MMIORegions {
 
         if let Some(node) = fdt.find_compatible(&["virtio,mmio"]) {
             mmio_devices.add_region(
-                MMIOType::Virtio,
+                MMIOType::VirtioBlk,
                 MemoryRegion {
                     starting_address: node.reg().unwrap().next().unwrap().starting_address as usize,
                     length: node.reg().unwrap().next().unwrap().size.unwrap() as usize,
@@ -155,19 +141,63 @@ impl MMIORegions {
     }
 }
 
-#[derive(FromRepr, Sequence, Clone, Copy)]
-#[repr(u32)]
-pub enum IrqEnum {
-    // for qemu, normally 0 ??
-    NVME_BLOCK = 2,
-    VIRTIO_BLOCK = 8,
-    // for qemu, 10
-    UART = 7,
+// #[derive(FromRepr, Sequence, Clone, Copy)]
+// #[repr(u32)]
+// pub enum IrqEnum {
+//     // for qemu, normally 0 ??
+//     NVME_BLOCK = 2,
+//     VIRTIO_BLOCK = 8,
+//     // for qemu, 10
+//     UART = 7,
+// }
+
+static DEVICE_REGISTRY: Once<DeviceRegistry> = Once::new();
+
+#[derive(Default)]
+pub struct DeviceRegistry<'a> {
+    devices: hashbrown::HashMap<usize, &'a dyn PlicDevice>,
+}
+
+impl<'a> DeviceRegistry<'a> {
+    pub fn init() {
+        DEVICE_REGISTRY.call_once(|| {
+            let mut registry = DeviceRegistry::default();
+            let block_device = BlockDeviceManager::get();
+            registry
+                .devices
+                .insert(block_device.irq_id(), block_device.as_ref());
+            registry.devices.insert(UART.irq_id(), UART.as_ref());
+            registry
+        });
+    }
+
+    pub fn get() -> &'static Self {
+        DEVICE_REGISTRY
+            .get()
+            .expect("Device registry not initialized")
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&usize, &&'a dyn PlicDevice)> {
+        self.devices.iter()
+    }
+
+    pub fn device(&self, irq_id: &usize) -> Option<&'a dyn PlicDevice> {
+        self.devices.get(irq_id).copied()
+    }
 }
 
 pub fn device_init() {
     use riscv::register::sie;
-    let mut plic = unsafe { PLIC::new(0xc000000) };
+    let mut plic = unsafe {
+        PLIC::new(
+            MMIO_REGIONS
+                .get()
+                .unwrap()
+                .get_region(MMIOType::Plic)
+                .unwrap()
+                .starting_address,
+        )
+    };
     let hart_id: usize = 0;
     let supervisor = IntrTargetPriority::Supervisor;
     let machine = IntrTargetPriority::Machine;
@@ -175,9 +205,10 @@ pub fn device_init() {
     plic.set_threshold(hart_id, supervisor, 0);
     plic.set_threshold(hart_id, machine, 1);
 
-    for intr_src_id in all::<IrqEnum>() {
-        plic.enable(hart_id, supervisor, intr_src_id as usize);
-        plic.set_priority(intr_src_id as usize, 1);
+    DeviceRegistry::init();
+    for (irq_id, _) in DeviceRegistry::get().iter() {
+        plic.enable(hart_id, supervisor, *irq_id);
+        plic.set_priority(*irq_id, 1);
     }
     unsafe {
         sie::set_sext();
@@ -185,11 +216,26 @@ pub fn device_init() {
 }
 
 pub fn irq_handler() {
-    let mut plic = unsafe { PLIC::new(0xc000000) };
+    let mut plic = unsafe {
+        PLIC::new(
+            MMIO_REGIONS
+                .get()
+                .unwrap()
+                .get_region(MMIOType::Plic)
+                .unwrap()
+                .starting_address,
+        )
+    };
     let irq_id = plic.claim(0, IntrTargetPriority::Supervisor);
-    match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
-        IrqEnum::NVME_BLOCK | IrqEnum::VIRTIO_BLOCK => BlockDeviceManager::get().handle_irq(),
-        IrqEnum::UART => UART.handle_irq(),
+    // match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
+    //     IrqEnum::NVME_BLOCK | IrqEnum::VIRTIO_BLOCK => BlockDeviceManager::get().handle_irq(),
+    //     IrqEnum::UART => UART.handle_irq(),
+    // }
+    match DeviceRegistry::get().device(&irq_id.try_into().unwrap()) {
+        Some(device_info) => {
+            device_info.irq_handler();
+            plic.complete(0, IntrTargetPriority::Supervisor, irq_id);
+        }
+        None => panic!("Unhandled IRQ: {}", irq_id),
     }
-    plic.complete(0, IntrTargetPriority::Supervisor, irq_id);
 }

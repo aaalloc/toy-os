@@ -24,7 +24,7 @@ mod timer;
 mod trap;
 use crate::drivers::block::BlockDeviceManager;
 use crate::drivers::chardev::UartDevice;
-use crate::drivers::pcie;
+use crate::drivers::pci;
 extern crate alloc;
 use core::arch::{asm, global_asm};
 use drivers::chardev::UART;
@@ -242,7 +242,7 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
     memory::init_allocators();
     board::find_mmio_regions(&fdt);
     memory::init_mmio_regions();
-    pcie::scan_pci_devices();
+    pci::scan_pci_devices();
     UART.init();
     BlockDeviceManager::init();
     task::add_initproc();
