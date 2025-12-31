@@ -6,7 +6,7 @@ use log::error;
 pub use virtio_blk::VirtIOBlock;
 extern crate alloc;
 use crate::{
-    board::{MMIOType, MMIO_REGIONS},
+    board::DEVICE_TREE_NODES,
     drivers::{block::nvme_blk::NVMeBlock, pci::PciRegistry, plic::PlicDevice},
 };
 use alloc::sync::Arc;
@@ -21,20 +21,20 @@ pub struct BlockDeviceManager;
 
 impl BlockDeviceManager {
     pub fn init() {
-        let (nvme_addr, _) = PciRegistry::get()
+        let (nvme_addr, irq_id) = PciRegistry::get()
             .nvme("nvme0")
             .expect("No NVMe device found");
 
-        let dev: Arc<dyn BlockDeviceTmp> = match NVMeBlock::new(nvme_addr) {
+        let dev: Arc<dyn BlockDeviceTmp> = match NVMeBlock::new(nvme_addr, irq_id) {
             Ok(nvme) => Arc::new(nvme),
             Err(e) => {
                 error!("NVMe init failed: {}", e);
-                let virtio = MMIO_REGIONS
-                    .get()
-                    .expect("MMIO not initialized")
-                    .get_region(MMIOType::VirtioBlk)
-                    .expect("Virtio MMIO missing");
-                Arc::new(VirtIOBlock::new(virtio))
+                let virtio = DEVICE_TREE_NODES.get().unwrap().get_virtio_blk();
+                Arc::new(VirtIOBlock::new(
+                    virtio.get_base_addr(),
+                    virtio.get_base_addr_size(),
+                    virtio.get_irq_id(),
+                ))
             }
         };
 

@@ -23,7 +23,7 @@ pub use page_table::{
 };
 pub use page_table::{PTEFlags, PageTable};
 
-use crate::board::MMIO_REGIONS;
+use crate::board::DEVICE_TREE_NODES;
 
 pub fn init_allocators() {
     heap_allocator::init_heap();
@@ -33,10 +33,16 @@ pub fn init_allocators() {
 pub fn init_mmio_regions() {
     KERNEL_SPACE.exclusive_access().activate();
 
-    for (_, region) in MMIO_REGIONS.get().unwrap().get_all_regions() {
+    for device in DEVICE_TREE_NODES
+        .get()
+        .unwrap()
+        .as_slice()
+        .iter()
+        .filter(|d| d.is_valid())
+    {
         KERNEL_SPACE
             .exclusive_access()
-            .map_mmio(region.starting_address, region.length);
+            .map_mmio(device.get_base_addr(), device.get_base_addr_size());
         KERNEL_SPACE.exclusive_access().activate();
     }
 }

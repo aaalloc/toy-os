@@ -1,6 +1,5 @@
 //! SBI console driver, for text output
-use crate::drivers::chardev::UartDevice;
-use crate::drivers::chardev::UART;
+use crate::drivers::chardev::{UartDevice, UartDeviceManager};
 use crate::sbi::console_putchar;
 use core::fmt::{self, Write};
 
@@ -10,7 +9,7 @@ struct StdoutKernel;
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for c in s.chars() {
-            UART.write(c as u8);
+            UartDeviceManager::get().write(c as u8);
         }
         Ok(())
     }

@@ -22,12 +22,10 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
-use crate::drivers::block::BlockDeviceManager;
-use crate::drivers::chardev::UartDevice;
 use crate::drivers::pci;
+use crate::drivers::{block::BlockDeviceManager, chardev::UartDeviceManager};
 extern crate alloc;
 use core::arch::{asm, global_asm};
-use drivers::chardev::UART;
 use fdt::Fdt;
 use lazy_static::lazy_static;
 use log::info;
@@ -240,10 +238,10 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
 
     trap::init();
     memory::init_allocators();
-    board::find_mmio_regions(&fdt);
+    board::find_mmio_regions(alloc::boxed::Box::leak(alloc::boxed::Box::new(fdt)));
     memory::init_mmio_regions();
     pci::scan_pci_devices();
-    UART.init();
+    UartDeviceManager::init();
     BlockDeviceManager::init();
     task::add_initproc();
     trap::enable_timer_interrupt();

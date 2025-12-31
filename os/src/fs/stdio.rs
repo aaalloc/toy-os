@@ -1,6 +1,6 @@
 extern crate alloc;
 use crate::drivers::chardev::UartDevice;
-use crate::drivers::chardev::UART;
+use crate::drivers::chardev::UartDeviceManager;
 use crate::{memory::UserBuffer, print};
 use alloc::vec::Vec;
 
@@ -13,7 +13,7 @@ pub struct Stdout;
 impl File for Stdin {
     fn read(&self, mut user_buf: UserBuffer) -> usize {
         assert_eq!(user_buf.len(), 1);
-        let ch = UART.read();
+        let ch = UartDeviceManager::get().read();
         unsafe {
             user_buf.buffers[0].as_mut_ptr().write_volatile(ch);
         }

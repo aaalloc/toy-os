@@ -7,10 +7,7 @@ use log::info;
 use pci_types::{ConfigRegionAccess, EndpointHeader, PciAddress, PciHeader};
 use spin::Once;
 
-use crate::{
-    board::{MMIOType, MMIO_REGIONS},
-    memory::KERNEL_SPACE,
-};
+use crate::{board::DEVICE_TREE_NODES, memory::KERNEL_SPACE};
 
 static PCI_REGISTRY: Once<PciRegistry> = Once::new();
 
@@ -109,12 +106,7 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize
 }
 
 pub fn scan_pci_devices() {
-    let base_addr = MMIO_REGIONS
-        .get()
-        .unwrap()
-        .get_region(MMIOType::Pci)
-        .unwrap()
-        .starting_address;
+    let base_addr = DEVICE_TREE_NODES.get().unwrap().get_pci().get_base_addr();
     let pci_access: PciAccess = PciAccess { base_addr };
 
     let mut pci_devices: HashMap<String, PciDevice> = HashMap::new();

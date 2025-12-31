@@ -131,19 +131,21 @@ struct NS16550aInner {
     read_buffer: VecDeque<u8>,
 }
 
-pub struct NS16550a<const BASE_ADDR: usize> {
+pub struct NS16550a {
     inner: UPIntrFreeCell<NS16550aInner>,
+    irq_id: usize,
     condvar: Condvar,
 }
 
-impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
-    pub fn new() -> Self {
+impl NS16550a {
+    pub fn new(base_addr: usize, irq_id: usize) -> Self {
         let inner = NS16550aInner {
-            ns16550a: NS16550aRaw::new(BASE_ADDR),
+            ns16550a: NS16550aRaw::new(base_addr),
             read_buffer: VecDeque::new(),
         };
         Self {
             inner: unsafe { UPIntrFreeCell::new(inner) },
+            irq_id,
             condvar: Condvar::new(),
         }
     }
@@ -155,11 +157,9 @@ impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
     }
 }
 
-impl<const BASE_ADDR: usize> PlicDevice for NS16550a<BASE_ADDR> {
+impl PlicDevice for NS16550a {
     fn irq_id(&self) -> usize {
-        //     // for qemu, 10
-        //     UART = 7,
-        7
+        self.irq_id
     }
 
     fn irq_handler(&self) {
@@ -176,7 +176,7 @@ impl<const BASE_ADDR: usize> PlicDevice for NS16550a<BASE_ADDR> {
     }
 }
 
-impl<const BASE_ADDR: usize> UartDevice for NS16550a<BASE_ADDR> {
+impl UartDevice for NS16550a {
     fn init(&self) {
         let mut inner = self.inner.exclusive_access();
         info!("init uart");

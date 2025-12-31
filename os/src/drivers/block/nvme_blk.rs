@@ -15,6 +15,7 @@ use easy_fs::BlockDevice;
 pub struct NVMeBlock {
     nvme_blk: UPIntrFreeCell<NVMeDevice>,
     doing_io: UPIntrFreeCell<bool>,
+    irq_id: usize,
     condvar: Condvar,
 }
 
@@ -23,8 +24,7 @@ impl BlockDeviceTmp for NVMeBlock {}
 #[allow(unused)]
 impl PlicDevice for NVMeBlock {
     fn irq_id(&self) -> usize {
-        // for qemu, normally 0 ??
-        2
+        self.irq_id
     }
 
     fn irq_handler(&self) {
@@ -104,12 +104,13 @@ impl BlockDevice for NVMeBlock {
 }
 
 impl NVMeBlock {
-    pub fn new(base_addr: usize) -> Result<Self, Box<dyn Error>> {
+    pub fn new(base_addr: usize, irq_id: usize) -> Result<Self, Box<dyn Error>> {
         match NVMeDevice::new(base_addr) {
             Ok(nvme) => {
                 Ok(NVMeBlock {
                     nvme_blk: unsafe { UPIntrFreeCell::new(nvme) },
                     doing_io: unsafe { UPIntrFreeCell::new(false) },
+                    irq_id,
                     // theres only on queue to survey, the completion queue
                     condvar: Condvar::new(),
                 })

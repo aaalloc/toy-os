@@ -4,7 +4,7 @@ use fdt::Fdt;
 
 use crate::drivers::{
     block::BlockDeviceManager,
-    chardev::{UartDevice, UART},
+    chardev::UartDeviceManager,
     plic::{IntrTargetPriority, PlicDevice, PLIC},
 };
 
@@ -12,144 +12,107 @@ use spin::Once;
 
 pub const CLOCK_FREQ: usize = 12500000;
 pub const MEMORY_END: usize = 0x8800_0000;
-pub type UartDeviceImpl = crate::drivers::chardev::NS16550a<0x1000_0000>;
-pub enum MMIOType {
-    Plic,
-    Uart,
-    VirtioBlk,
-    Pci,
+
+use fdt::node::FdtNode;
+
+pub struct DeviceTreeNode<'a> {
+    pub node: Option<FdtNode<'a, 'a>>,
 }
 
-pub static MMIO_REGIONS: Once<Arc<MMIORegions>> = Once::new();
-
-pub fn find_mmio_regions(fdt: &Fdt) {
-    let regions = MMIORegions::collect_mmio_from_fdt(fdt);
-    MMIO_REGIONS.call_once(|| Arc::new(regions));
-}
-
-pub struct MemoryRegion {
-    pub starting_address: usize,
-    pub length: usize,
-}
-
-pub struct MMIORegions {
-    plic: Option<MemoryRegion>,
-    uart: Option<MemoryRegion>,
-    virtio_blk: Option<MemoryRegion>,
-    pci: Option<MemoryRegion>,
-}
-
-impl MMIORegions {
-    pub fn empty() -> Self {
-        MMIORegions {
-            plic: None,
-            uart: None,
-            virtio_blk: None,
-            pci: None,
-        }
+impl<'a> DeviceTreeNode<'a> {
+    pub fn new(node: Option<FdtNode<'a, 'a>>) -> Self {
+        Self { node }
     }
 
-    pub fn get_region(&self, device: MMIOType) -> Option<&MemoryRegion> {
-        match device {
-            MMIOType::Plic => self.plic.as_ref(),
-            MMIOType::Uart => self.uart.as_ref(),
-            MMIOType::VirtioBlk => self.virtio_blk.as_ref(),
-            MMIOType::Pci => self.pci.as_ref(),
-        }
+    pub fn is_valid(&self) -> bool {
+        self.node.is_some()
     }
 
-    pub fn add_region(&mut self, device: MMIOType, region: MemoryRegion) {
-        match device {
-            MMIOType::Plic => self.plic = Some(region),
-            MMIOType::Uart => self.uart = Some(region),
-            MMIOType::VirtioBlk => self.virtio_blk = Some(region),
-            MMIOType::Pci => self.pci = Some(region),
-        }
+    pub fn get_irq_id(&self) -> usize {
+        self.node
+            .as_ref()
+            .unwrap()
+            .interrupts()
+            .unwrap()
+            .next()
+            .unwrap()
     }
 
-    pub fn get_all_regions(&self) -> alloc::vec::Vec<(MMIOType, &MemoryRegion)> {
-        let mut regions = alloc::vec::Vec::new();
-        if let Some(region) = &self.plic {
-            regions.push((MMIOType::Plic, region));
-        }
-        if let Some(region) = &self.uart {
-            regions.push((MMIOType::Uart, region));
-        }
-        if let Some(region) = &self.virtio_blk {
-            regions.push((MMIOType::VirtioBlk, region));
-        }
-        if let Some(region) = &self.pci {
-            regions.push((MMIOType::Pci, region));
-        }
-        regions
+    pub fn get_base_addr(&self) -> usize {
+        self.node
+            .as_ref()
+            .unwrap()
+            .reg()
+            .unwrap()
+            .next()
+            .unwrap()
+            .starting_address as usize
     }
 
-    pub fn collect_mmio_from_fdt(fdt: &Fdt) -> Self {
-        let mut mmio_devices = Self::empty();
-
-        // Example: UART
-        if let Some(uart_node) = fdt.find_compatible(&["ns16550a"]) {
-            mmio_devices.add_region(
-                MMIOType::Uart,
-                MemoryRegion {
-                    starting_address: uart_node.reg().unwrap().next().unwrap().starting_address
-                        as usize,
-                    length: uart_node.reg().unwrap().next().unwrap().size.unwrap() as usize,
-                },
-            );
-            log::info!(
-                "uart irq number: {}",
-                uart_node.interrupts().unwrap().next().unwrap()
-            );
-        };
-
-        if let Some(node) = fdt.find_compatible(&["virtio,mmio"]) {
-            mmio_devices.add_region(
-                MMIOType::VirtioBlk,
-                MemoryRegion {
-                    starting_address: node.reg().unwrap().next().unwrap().starting_address as usize,
-                    length: node.reg().unwrap().next().unwrap().size.unwrap() as usize,
-                },
-            );
-        };
-
-        let plic_node = fdt
-            .find_compatible(&["riscv,plic0"])
-            .or_else(|| fdt.find_compatible(&["sifive,plic-1.0.0"]));
-
-        if let Some(node) = plic_node {
-            mmio_devices.add_region(
-                MMIOType::Plic,
-                MemoryRegion {
-                    starting_address: node.reg().unwrap().next().unwrap().starting_address as usize,
-                    length: node.reg().unwrap().next().unwrap().size.unwrap() as usize,
-                },
-            );
-        };
-
-        if let Some(pci) = fdt.find_compatible(&["pci-host-ecam-generic"]) {
-            mmio_devices.add_region(
-                MMIOType::Pci,
-                MemoryRegion {
-                    starting_address: pci.reg().unwrap().next().unwrap().starting_address as usize,
-                    length: pci.reg().unwrap().next().unwrap().size.unwrap() as usize,
-                },
-            );
-        };
-
-        mmio_devices
+    pub fn get_base_addr_size(&self) -> usize {
+        self.node
+            .as_ref()
+            .unwrap()
+            .reg()
+            .unwrap()
+            .next()
+            .unwrap()
+            .size
+            .unwrap() as usize
     }
 }
 
-// #[derive(FromRepr, Sequence, Clone, Copy)]
-// #[repr(u32)]
-// pub enum IrqEnum {
-//     // for qemu, normally 0 ??
-//     NVME_BLOCK = 2,
-//     VIRTIO_BLOCK = 8,
-//     // for qemu, 10
-//     UART = 7,
-// }
+pub struct DeviceTree<'a> {
+    uart_node: DeviceTreeNode<'a>,
+    plic_node: DeviceTreeNode<'a>,
+    virtio_node: DeviceTreeNode<'a>,
+    pci_node: DeviceTreeNode<'a>,
+}
+
+impl<'a> DeviceTree<'a> {
+    pub fn new(fdt_root: &'a Fdt) -> Self {
+        Self {
+            virtio_node: DeviceTreeNode::new(fdt_root.find_compatible(&["virtio,mmio"])),
+            uart_node: DeviceTreeNode::new(fdt_root.find_compatible(&["ns16550a"])),
+            plic_node: DeviceTreeNode::new(
+                fdt_root
+                    .find_compatible(&["riscv,plic0"])
+                    .or_else(|| fdt_root.find_compatible(&["sifive,plic-1.0.0"])),
+            ),
+            pci_node: DeviceTreeNode::new(fdt_root.find_compatible(&["pci-host-ecam-generic"])),
+        }
+    }
+    pub fn get_uart(&self) -> &DeviceTreeNode<'a> {
+        &self.uart_node
+    }
+
+    pub fn get_virtio_blk(&self) -> &DeviceTreeNode<'a> {
+        &self.virtio_node
+    }
+
+    pub fn get_plic(&self) -> &DeviceTreeNode<'a> {
+        &self.plic_node
+    }
+
+    pub fn get_pci(&self) -> &DeviceTreeNode<'a> {
+        &self.pci_node
+    }
+
+    pub fn as_slice(&self) -> [&DeviceTreeNode<'a>; 4] {
+        [
+            &self.uart_node,
+            &self.plic_node,
+            &self.virtio_node,
+            &self.pci_node,
+        ]
+    }
+}
+
+pub static DEVICE_TREE_NODES: Once<Arc<DeviceTree>> = Once::new();
+
+pub fn find_mmio_regions(fdt: &'static Fdt) {
+    DEVICE_TREE_NODES.call_once(|| Arc::new(DeviceTree::new(fdt)));
+}
 
 static DEVICE_REGISTRY: Once<DeviceRegistry> = Once::new();
 
@@ -166,7 +129,11 @@ impl<'a> DeviceRegistry<'a> {
             registry
                 .devices
                 .insert(block_device.irq_id(), block_device.as_ref());
-            registry.devices.insert(UART.irq_id(), UART.as_ref());
+
+            let uart_device = UartDeviceManager::get();
+            registry
+                .devices
+                .insert(uart_device.irq_id(), uart_device.as_ref());
             registry
         });
     }
@@ -188,16 +155,8 @@ impl<'a> DeviceRegistry<'a> {
 
 pub fn device_init() {
     use riscv::register::sie;
-    let mut plic = unsafe {
-        PLIC::new(
-            MMIO_REGIONS
-                .get()
-                .unwrap()
-                .get_region(MMIOType::Plic)
-                .unwrap()
-                .starting_address,
-        )
-    };
+    let mut plic =
+        unsafe { PLIC::new(DEVICE_TREE_NODES.get().unwrap().get_plic().get_base_addr()) };
     let hart_id: usize = 0;
     let supervisor = IntrTargetPriority::Supervisor;
     let machine = IntrTargetPriority::Machine;
@@ -216,21 +175,9 @@ pub fn device_init() {
 }
 
 pub fn irq_handler() {
-    let mut plic = unsafe {
-        PLIC::new(
-            MMIO_REGIONS
-                .get()
-                .unwrap()
-                .get_region(MMIOType::Plic)
-                .unwrap()
-                .starting_address,
-        )
-    };
+    let mut plic =
+        unsafe { PLIC::new(DEVICE_TREE_NODES.get().unwrap().get_plic().get_base_addr()) };
     let irq_id = plic.claim(0, IntrTargetPriority::Supervisor);
-    // match IrqEnum::from_repr(irq_id).expect(alloc::format!("Invalid IRQ {}", irq_id).as_str()) {
-    //     IrqEnum::NVME_BLOCK | IrqEnum::VIRTIO_BLOCK => BlockDeviceManager::get().handle_irq(),
-    //     IrqEnum::UART => UART.handle_irq(),
-    // }
     match DeviceRegistry::get().device(&irq_id.try_into().unwrap()) {
         Some(device_info) => {
             device_info.irq_handler();

@@ -3,7 +3,6 @@ use core::panic;
 use core::ptr::NonNull;
 
 use super::BlockDevice;
-use crate::board::MemoryRegion;
 use crate::drivers::block::BlockDeviceTmp;
 use crate::drivers::bus::virtio::VirtioHal;
 use crate::drivers::plic::PlicDevice;
@@ -19,13 +18,13 @@ use virtio_drivers::transport::Transport;
 
 pub struct VirtIOBlock<'a> {
     virtio_blk: UPIntrFreeCell<VirtIOBlk<VirtioHal, MmioTransport<'a>>>,
+    irq_id: usize,
     condvars: BTreeMap<u16, Condvar>,
 }
 
 impl<'a> PlicDevice for VirtIOBlock<'static> {
     fn irq_id(&self) -> usize {
-        // hardcoded for qemu
-        8
+        self.irq_id
     }
 
     fn irq_handler(&self) {
@@ -106,10 +105,10 @@ impl<'a> BlockDevice for VirtIOBlock<'static> {
 }
 
 impl VirtIOBlock<'_> {
-    pub fn new(memory_region: &MemoryRegion) -> Self {
+    pub fn new(base_address: usize, base_address_size: usize, irq_id: usize) -> Self {
         let virtio_blk = {
-            let mmio_size = memory_region.length;
-            let mmio_addr = memory_region.starting_address;
+            let mmio_size = base_address_size;
+            let mmio_addr = base_address;
             let header = NonNull::new(mmio_addr as *mut VirtIOHeader).unwrap();
             let transport = match unsafe { MmioTransport::new(header, mmio_size) } {
                 Err(e) => {
@@ -140,6 +139,7 @@ impl VirtIOBlock<'_> {
 
         Self {
             virtio_blk: unsafe { UPIntrFreeCell::new(virtio_blk) },
+            irq_id,
             condvars,
         }
     }
