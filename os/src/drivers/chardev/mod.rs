@@ -4,7 +4,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use spin::Once;
 
-use crate::{board::DEVICE_TREE_NODES, drivers::plic::PlicDevice};
+use crate::{device_tree::DEVICE_TREE_NODES, drivers::plic::PlicDevice};
 
 pub trait UartDevice: PlicDevice {
     fn init(&self);

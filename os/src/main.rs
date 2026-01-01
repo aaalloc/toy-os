@@ -7,11 +7,10 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-#[path = "boards/qemu.rs"]
-mod board;
 mod config;
 mod console;
 mod drivers;
+use drivers::device_tree;
 mod fs;
 mod lang_items;
 mod logging;
@@ -238,7 +237,7 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
 
     trap::init();
     memory::init_allocators();
-    board::find_mmio_regions(alloc::boxed::Box::leak(alloc::boxed::Box::new(fdt)));
+    device_tree::find_mmio_regions(alloc::boxed::Box::leak(alloc::boxed::Box::new(fdt)));
     memory::init_mmio_regions();
     pci::scan_pci_devices();
     UartDeviceManager::init();
@@ -246,7 +245,7 @@ pub fn kmain(_hartid: usize, fdt_ptr: *const u8) -> ! {
     task::add_initproc();
     trap::enable_timer_interrupt();
     // timer::set_next_trigger();
-    board::device_init();
+    device_tree::device_init();
     *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     task::run_tasks();
     panic!("Unreachable in rust_main!");

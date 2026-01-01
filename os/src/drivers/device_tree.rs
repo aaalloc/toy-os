@@ -10,9 +10,6 @@ use crate::drivers::{
 
 use spin::Once;
 
-pub const CLOCK_FREQ: usize = 12500000;
-pub const MEMORY_END: usize = 0x8800_0000;
-
 use fdt::node::FdtNode;
 
 pub struct DeviceTreeNode<'a> {

@@ -6,7 +6,7 @@ use log::error;
 pub use virtio_blk::VirtIOBlock;
 extern crate alloc;
 use crate::{
-    board::DEVICE_TREE_NODES,
+    device_tree::DEVICE_TREE_NODES,
     drivers::{block::nvme_blk::NVMeBlock, pci::PciRegistry, plic::PlicDevice},
 };
 use alloc::sync::Arc;

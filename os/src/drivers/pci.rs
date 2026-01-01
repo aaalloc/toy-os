@@ -7,7 +7,7 @@ use log::info;
 use pci_types::{ConfigRegionAccess, EndpointHeader, PciAddress, PciHeader};
 use spin::Once;
 
-use crate::{board::DEVICE_TREE_NODES, memory::KERNEL_SPACE};
+use crate::{device_tree::DEVICE_TREE_NODES, memory::KERNEL_SPACE};
 
 static PCI_REGISTRY: Once<PciRegistry> = Once::new();
 

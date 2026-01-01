@@ -23,7 +23,7 @@ pub use page_table::{
 };
 pub use page_table::{PTEFlags, PageTable};
 
-use crate::board::DEVICE_TREE_NODES;
+use crate::device_tree::DEVICE_TREE_NODES;
 
 pub fn init_allocators() {
     heap_allocator::init_heap();
