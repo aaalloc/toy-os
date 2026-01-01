@@ -21,11 +21,14 @@ pub struct BlockDeviceManager;
 
 impl BlockDeviceManager {
     pub fn init() {
-        let (nvme_addr, irq_id) = PciRegistry::get()
-            .nvme("nvme0")
+        let pci_nvme_device = PciRegistry::get()
+            .device("nvme0")
             .expect("No NVMe device found");
 
-        let dev: Arc<dyn BlockDeviceTmp> = match NVMeBlock::new(nvme_addr, irq_id) {
+        let dev: Arc<dyn BlockDeviceTmp> = match NVMeBlock::new(
+            pci_nvme_device.get_base_addr(),
+            pci_nvme_device.get_irq_id(),
+        ) {
             Ok(nvme) => Arc::new(nvme),
             Err(e) => {
                 error!("NVMe init failed: {}", e);

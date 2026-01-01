@@ -15,9 +15,52 @@ pub struct PciAccess {
     base_addr: usize,
 }
 
+pub struct PciDevice {
+    base_addr: usize,
+    bus: u8,
+    device: u8,
+    function: u8,
+    irq_id: usize,
+    device_type: PciDeviceType,
+}
+
+impl PciDevice {
+    pub fn new(
+        base_addr: usize,
+        bus: u8,
+        device: u8,
+        function: u8,
+        interrupt_pin: u8,
+        device_type: PciDeviceType,
+    ) -> Self {
+        // let irq_id = DEVICE_TREE_NODES
+        //     .get()
+        //     .unwrap()
+        //     .get_pci()
+        //     .resolve_pci_irq_id(bus, device, function, interrupt_pin)
+        //     .unwrap();
+        PciDevice {
+            base_addr,
+            bus,
+            device,
+            function,
+            irq_id: 2,
+            device_type,
+        }
+    }
+
+    pub fn get_base_addr(&self) -> usize {
+        self.base_addr
+    }
+
+    pub fn get_irq_id(&self) -> usize {
+        self.irq_id
+    }
+}
+
 #[derive(Debug)]
-pub enum PciDevice {
-    NVMe(usize, usize), // (base addr, irq line)
+pub enum PciDeviceType {
+    NVMe,
     Other,
 }
 
@@ -37,13 +80,6 @@ impl PciRegistry {
 
     pub fn device(&self, key: &str) -> Option<&PciDevice> {
         self.devices.get(key)
-    }
-
-    pub fn nvme(&self, key: &str) -> Option<(usize, usize)> {
-        match self.device(key) {
-            Some(PciDevice::NVMe(addr, irq)) => Some((*addr, *irq)),
-            _ => None,
-        }
     }
 }
 
@@ -98,7 +134,7 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize
         match endpoint.write_bar(0, &pci, addr) {
             Ok(_) => {
                 let bar0 = endpoint.bar(0, &pci).unwrap();
-                return (bar0.unwrap_mem().0, line as usize);
+                return (bar0.unwrap_mem().0, pin as usize);
             }
             Err(e) => panic!("Failed to write BAR0: {:?}", e),
         }
@@ -106,7 +142,8 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize
 }
 
 pub fn scan_pci_devices() {
-    let base_addr = DEVICE_TREE_NODES.get().unwrap().get_pci().get_base_addr();
+    let pci_dtn = DEVICE_TREE_NODES.get().unwrap().get_pci();
+    let base_addr = pci_dtn.get_base_addr();
     let pci_access: PciAccess = PciAccess { base_addr };
 
     let mut pci_devices: HashMap<String, PciDevice> = HashMap::new();
@@ -131,9 +168,18 @@ pub fn scan_pci_devices() {
                                 address.device(),
                                 address.function()
                             );
-                            let (base_addr, irq_line) = nvme_setup(&pci_access, header, address);
-                            pci_devices
-                                .insert("nvme0".to_string(), PciDevice::NVMe(base_addr, irq_line));
+                            let (base_addr, irq_pin) = nvme_setup(&pci_access, header, address);
+                            pci_devices.insert(
+                                "nvme0".to_string(),
+                                PciDevice::new(
+                                    base_addr,
+                                    bus,
+                                    device,
+                                    function,
+                                    irq_pin as u8,
+                                    PciDeviceType::NVMe,
+                                ),
+                            );
                         }
                         _ => (),
                     }
