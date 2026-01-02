@@ -48,13 +48,7 @@ impl<'a> DeviceTreeNode<'a> {
             .starting_address as usize
     }
 
-    pub fn resolve_pci_irq_id(
-        &self,
-        bus: u8,
-        device: u8,
-        function: u8,
-        interrupt_pin: u8,
-    ) -> Option<usize> {
+    pub fn resolve_pci_irq_id(&self, bus: u8, device: u8, function: u8, irq_pin: u8) -> Option<u8> {
         let node = self.node.as_ref()?;
 
         let map_data = node.property("interrupt-map")?.value;
@@ -84,11 +78,11 @@ impl<'a> DeviceTreeNode<'a> {
             .map(|b| u32::from_be_bytes(b.try_into().unwrap()))
             .collect();
 
-        let pci_addr = ((device as u32) << 11) | ((function as u32) << 8);
+        let pci_addr = ((bus as u32) << 16) | ((device as u32) << 11) | ((function as u32) << 8);
 
         let mut spec = alloc::vec![0u32; address_cells + interrupt_cells];
         spec[0] = pci_addr;
-        spec[address_cells] = interrupt_pin as u32;
+        spec[address_cells] = irq_pin as u32;
 
         // Apply mask
         for i in 0..spec.len() {
@@ -118,15 +112,7 @@ impl<'a> DeviceTreeNode<'a> {
                 offset += 4;
 
                 let irq = u32::from_be_bytes(entry[offset..offset + 4].try_into().unwrap());
-                log::info!(
-                    "Resolved PCI IRQ: bus {}, device {}, function {}, pin {} to IRQ {}",
-                    bus,
-                    device,
-                    function,
-                    interrupt_pin,
-                    irq
-                );
-                return Some(irq as usize);
+                return Some(irq as u8);
             }
         }
 

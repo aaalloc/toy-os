@@ -15,12 +15,11 @@ pub struct PciAccess {
     base_addr: usize,
 }
 
+#[allow(dead_code)]
 pub struct PciDevice {
     base_addr: usize,
-    bus: u8,
-    device: u8,
-    function: u8,
-    irq_id: usize,
+    pci_bus_device_function: u32,
+    irq_id: u8,
     device_type: PciDeviceType,
 }
 
@@ -30,20 +29,21 @@ impl PciDevice {
         bus: u8,
         device: u8,
         function: u8,
-        interrupt_pin: u8,
+        irq_pin: u8,
         device_type: PciDeviceType,
     ) -> Self {
         let irq_id = DEVICE_TREE_NODES
             .get()
             .unwrap()
             .get_pci()
-            .resolve_pci_irq_id(bus, device, function, interrupt_pin)
+            .resolve_pci_irq_id(bus, device, function, irq_pin)
             .unwrap();
+
+        let pci_bus_device_function: u32 =
+            (bus as u32) << 16 | (device as u32) << 11 | (function as u32) << 8;
         PciDevice {
             base_addr,
-            bus,
-            device,
-            function,
+            pci_bus_device_function,
             irq_id,
             device_type,
         }
@@ -54,7 +54,27 @@ impl PciDevice {
     }
 
     pub fn get_irq_id(&self) -> usize {
-        self.irq_id
+        self.irq_id as usize
+    }
+
+    #[allow(dead_code)]
+    pub fn get_device_type(&self) -> &PciDeviceType {
+        &self.device_type
+    }
+
+    #[allow(dead_code)]
+    pub fn get_pci_bus(&self) -> u8 {
+        ((self.pci_bus_device_function >> 16) & 0xFF) as u8
+    }
+
+    #[allow(dead_code)]
+    pub fn get_pci_device(&self) -> u8 {
+        ((self.pci_bus_device_function >> 11) & 0x1F) as u8
+    }
+
+    #[allow(dead_code)]
+    pub fn get_pci_function(&self) -> u8 {
+        ((self.pci_bus_device_function >> 8) & 0x07) as u8
     }
 }
 
@@ -119,9 +139,7 @@ fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize
     let (bus, device, function) = (address.bus(), address.device(), address.function());
 
     // TODO: register interupt line or pin so that we can register it to plic
-    let (pin, line) = endpoint.interrupt(pci);
-    info!("   Interrupt Line: {}", line);
-    info!("   Interrupt Pin: {}", pin);
+    let (pin, _) = endpoint.interrupt(pci);
 
     info!(
         "-> Found NVMe device: {:04x}:{:04x} at {:02x}:{:02x}.{:x}",
