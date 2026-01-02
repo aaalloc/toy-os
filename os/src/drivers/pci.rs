@@ -33,18 +33,18 @@ impl PciDevice {
         interrupt_pin: u8,
         device_type: PciDeviceType,
     ) -> Self {
-        // let irq_id = DEVICE_TREE_NODES
-        //     .get()
-        //     .unwrap()
-        //     .get_pci()
-        //     .resolve_pci_irq_id(bus, device, function, interrupt_pin)
-        //     .unwrap();
+        let irq_id = DEVICE_TREE_NODES
+            .get()
+            .unwrap()
+            .get_pci()
+            .resolve_pci_irq_id(bus, device, function, interrupt_pin)
+            .unwrap();
         PciDevice {
             base_addr,
             bus,
             device,
             function,
-            irq_id: 2,
+            irq_id,
             device_type,
         }
     }
