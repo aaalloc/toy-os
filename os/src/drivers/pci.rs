@@ -18,34 +18,60 @@ pub struct PciAccess {
 #[allow(dead_code)]
 pub struct PciDevice {
     base_addr: usize,
-    pci_bus_device_function: u32,
+    bus: u8,
+    device: u8,
+    function: u8,
+    vendor_id: u16,
+    device_id: u16,
     irq_id: u8,
     device_type: PciDeviceType,
 }
 
 impl PciDevice {
     pub fn new(
-        base_addr: usize,
-        bus: u8,
-        device: u8,
-        function: u8,
-        irq_pin: u8,
+        pci: &PciAccess,
+        header: PciHeader,
+        address: PciAddress,
         device_type: PciDeviceType,
     ) -> Self {
-        let irq_id = DEVICE_TREE_NODES
-            .get()
-            .unwrap()
-            .get_pci()
-            .resolve_pci_irq_id(bus, device, function, irq_pin)
-            .unwrap();
+        let mut endpoint = EndpointHeader::from_header(header, pci).unwrap();
+        endpoint.update_command(pci, |command| {
+            command
+                | pci_types::CommandRegister::BUS_MASTER_ENABLE
+                | pci_types::CommandRegister::MEMORY_ENABLE
+        });
 
-        let pci_bus_device_function: u32 =
-            (bus as u32) << 16 | (device as u32) << 11 | (function as u32) << 8;
-        PciDevice {
-            base_addr,
-            pci_bus_device_function,
-            irq_id,
-            device_type,
+        let (vendor_id, device_id) = endpoint.header().id(pci);
+        let (bus, device, function) = (address.bus(), address.device(), address.function());
+
+        let (irq_pin, _) = endpoint.interrupt(pci);
+
+        // TODO: get addr with a find_free_va(length) instead of hardcoding
+        let addr = 0x4000_0000;
+        let addr_size = endpoint.bar(0, pci).unwrap().unwrap_mem().1;
+        KERNEL_SPACE.exclusive_access().map_mmio(addr, addr_size);
+        unsafe {
+            match endpoint.write_bar(0, pci, addr) {
+                Ok(_) => {
+                    let bar0 = endpoint.bar(0, pci).unwrap();
+                    return PciDevice {
+                        base_addr: bar0.unwrap_mem().0,
+                        bus,
+                        device,
+                        function,
+                        vendor_id,
+                        device_id,
+                        irq_id: DEVICE_TREE_NODES
+                            .get()
+                            .unwrap()
+                            .get_pci()
+                            .resolve_pci_irq_id(bus, device, function, irq_pin)
+                            .unwrap(),
+                        device_type,
+                    };
+                }
+                Err(e) => panic!("Failed to write BAR0: {:?}", e),
+            }
         }
     }
 
@@ -61,27 +87,21 @@ impl PciDevice {
     pub fn get_device_type(&self) -> &PciDeviceType {
         &self.device_type
     }
-
-    #[allow(dead_code)]
-    pub fn get_pci_bus(&self) -> u8 {
-        ((self.pci_bus_device_function >> 16) & 0xFF) as u8
-    }
-
-    #[allow(dead_code)]
-    pub fn get_pci_device(&self) -> u8 {
-        ((self.pci_bus_device_function >> 11) & 0x1F) as u8
-    }
-
-    #[allow(dead_code)]
-    pub fn get_pci_function(&self) -> u8 {
-        ((self.pci_bus_device_function >> 8) & 0x07) as u8
-    }
 }
 
 #[derive(Debug)]
 pub enum PciDeviceType {
     NVMe,
     Other,
+}
+
+impl From<(u8, u8, u8)> for PciDeviceType {
+    fn from(v: (u8, u8, u8)) -> Self {
+        match v {
+            (0x01, 0x08, 0x02) => PciDeviceType::NVMe,
+            _ => PciDeviceType::Other,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -127,38 +147,6 @@ impl ConfigRegionAccess for PciAccess {
     }
 }
 
-fn nvme_setup(pci: &PciAccess, header: PciHeader, address: PciAddress) -> (usize, usize) {
-    let mut endpoint = EndpointHeader::from_header(header, pci).unwrap();
-    endpoint.update_command(pci, |command| {
-        command
-            | pci_types::CommandRegister::BUS_MASTER_ENABLE
-            | pci_types::CommandRegister::MEMORY_ENABLE
-    });
-
-    let (vendor_id, device_id) = endpoint.header().id(pci);
-    let (bus, device, function) = (address.bus(), address.device(), address.function());
-
-    // TODO: register interupt line or pin so that we can register it to plic
-    let (pin, _) = endpoint.interrupt(pci);
-
-    info!(
-        "-> Found NVMe device: {:04x}:{:04x} at {:02x}:{:02x}.{:x}",
-        vendor_id, device_id, bus, device, function
-    );
-    // TODO: select last addr instead of getting that and getting length also from reading bar
-    let addr = 0x4000_0000;
-    KERNEL_SPACE.exclusive_access().map_mmio(addr, 0x4000);
-    unsafe {
-        match endpoint.write_bar(0, &pci, addr) {
-            Ok(_) => {
-                let bar0 = endpoint.bar(0, &pci).unwrap();
-                return (bar0.unwrap_mem().0, pin as usize);
-            }
-            Err(e) => panic!("Failed to write BAR0: {:?}", e),
-        }
-    }
-}
-
 pub fn scan_pci_devices() {
     let pci_dtn = DEVICE_TREE_NODES.get().unwrap().get_pci();
     let base_addr = pci_dtn.get_base_addr();
@@ -178,25 +166,18 @@ pub fn scan_pci_devices() {
                     }
                     let (_, base_class, sub_class, prog_if) =
                         header.revision_and_class(&pci_access);
-                    match (base_class, sub_class, prog_if) {
-                        (0x01, 0x08, 0x02) => {
+                    let device_type = PciDeviceType::from((base_class, sub_class, prog_if));
+                    match device_type {
+                        PciDeviceType::NVMe => {
                             info!(
                                 "Found NVMe controller at {:02x}:{:02x}.{:x}",
                                 address.bus(),
                                 address.device(),
                                 address.function()
                             );
-                            let (base_addr, irq_pin) = nvme_setup(&pci_access, header, address);
                             pci_devices.insert(
                                 "nvme0".to_string(),
-                                PciDevice::new(
-                                    base_addr,
-                                    bus,
-                                    device,
-                                    function,
-                                    irq_pin as u8,
-                                    PciDeviceType::NVMe,
-                                ),
+                                PciDevice::new(&pci_access, header, address, device_type),
                             );
                         }
                         _ => (),

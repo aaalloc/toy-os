@@ -18,34 +18,19 @@ pub struct DeviceTreeNode<'a> {
     pub node: Option<FdtNode<'a, 'a>>,
 }
 
-impl<'a> DeviceTreeNode<'a> {
+pub struct PciNode<'a>(DeviceTreeNode<'a>);
+
+impl<'a> core::ops::Deref for PciNode<'a> {
+    type Target = DeviceTreeNode<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> PciNode<'a> {
     pub fn new(node: Option<FdtNode<'a, 'a>>) -> Self {
-        Self { node }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.node.is_some()
-    }
-
-    pub fn get_irq_id(&self) -> usize {
-        self.node
-            .as_ref()
-            .unwrap()
-            .interrupts()
-            .unwrap()
-            .next()
-            .unwrap()
-    }
-
-    pub fn get_base_addr(&self) -> usize {
-        self.node
-            .as_ref()
-            .unwrap()
-            .reg()
-            .unwrap()
-            .next()
-            .unwrap()
-            .starting_address as usize
+        Self(DeviceTreeNode::new(node))
     }
 
     pub fn resolve_pci_irq_id(&self, bus: u8, device: u8, function: u8, irq_pin: u8) -> Option<u8> {
@@ -118,6 +103,37 @@ impl<'a> DeviceTreeNode<'a> {
 
         None
     }
+}
+
+impl<'a> DeviceTreeNode<'a> {
+    pub fn new(node: Option<FdtNode<'a, 'a>>) -> Self {
+        Self { node }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.node.is_some()
+    }
+
+    pub fn get_irq_id(&self) -> usize {
+        self.node
+            .as_ref()
+            .unwrap()
+            .interrupts()
+            .unwrap()
+            .next()
+            .unwrap()
+    }
+
+    pub fn get_base_addr(&self) -> usize {
+        self.node
+            .as_ref()
+            .unwrap()
+            .reg()
+            .unwrap()
+            .next()
+            .unwrap()
+            .starting_address as usize
+    }
 
     pub fn get_base_addr_size(&self) -> usize {
         self.node
@@ -136,7 +152,7 @@ pub struct DeviceTree<'a> {
     uart_node: DeviceTreeNode<'a>,
     plic_node: DeviceTreeNode<'a>,
     virtio_node: DeviceTreeNode<'a>,
-    pci_node: DeviceTreeNode<'a>,
+    pci_node: PciNode<'a>,
 }
 
 impl<'a> DeviceTree<'a> {
@@ -149,7 +165,7 @@ impl<'a> DeviceTree<'a> {
                     .find_compatible(&["riscv,plic0"])
                     .or_else(|| fdt_root.find_compatible(&["sifive,plic-1.0.0"])),
             ),
-            pci_node: DeviceTreeNode::new(fdt_root.find_compatible(&["pci-host-ecam-generic"])),
+            pci_node: PciNode::new(fdt_root.find_compatible(&["pci-host-ecam-generic"])),
         }
     }
     pub fn get_uart(&self) -> &DeviceTreeNode<'a> {
@@ -164,7 +180,7 @@ impl<'a> DeviceTree<'a> {
         &self.plic_node
     }
 
-    pub fn get_pci(&self) -> &DeviceTreeNode<'a> {
+    pub fn get_pci(&self) -> &PciNode<'a> {
         &self.pci_node
     }
 
