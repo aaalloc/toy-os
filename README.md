@@ -8,9 +8,10 @@ Toy project around an kernel written in Rust/RISC-V
 - [x] User space
 - [x] Shell
 - [x] File system
-- Drivers (thanks to virtio)
+- [x] Setup with Device tree (depends on OpenSBI)
+- Drivers
   - [x] UART
-  - [x] Block device
+  - [x] Block device (virtio, PCI/NVMe)
   - [ ] Network
 
 
