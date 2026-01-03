@@ -3,6 +3,11 @@ pub struct PLIC {
     base_addr: usize,
 }
 
+pub trait PlicDevice: Sync + Send {
+    fn irq_id(&self) -> usize;
+    fn irq_handler(&self);
+}
+
 #[derive(Copy, Clone)]
 pub enum IntrTargetPriority {
     Machine = 0,

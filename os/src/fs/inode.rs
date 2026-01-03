@@ -5,16 +5,18 @@ use alloc::vec::Vec;
 use bitflags::bitflags;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
+use log::info;
 
 use crate::{
-    drivers::block::BLOCK_DEVICE, memory::UserBuffer, sync::UPIntrFreeCell, task::current_task,
+    drivers::block::BlockDeviceManager, memory::UserBuffer, sync::UPIntrFreeCell,
+    task::current_task,
 };
 
 use super::{Dirent, DirentType, File};
 
 lazy_static! {
     pub static ref ROOT_INODE: Arc<Inode> = {
-        let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
+        let efs = EasyFileSystem::open(BlockDeviceManager::get().clone());
         Arc::new(EasyFileSystem::root_inode(&efs))
     };
 }
@@ -171,11 +173,21 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
                 .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
         }
     } else {
-        current_inode.find(name).map(|inode| {
+        let inode = current_inode.find(name).map(|inode| {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
             }
             Arc::new(OSInode::new(readable, writable, inode))
-        })
+        });
+        match inode {
+            Some(inode) => {
+                info!("open_file: file {:?} opened", name);
+                Some(inode)
+            }
+            None => {
+                info!("open_file: file {:?} not found", name);
+                None
+            }
+        }
     }
 }

@@ -22,9 +22,27 @@ pub use page_table::{
     translated_byte_buffer, translated_ref, translated_refmut, translated_str, PageTableEntry,
 };
 pub use page_table::{PTEFlags, PageTable};
-/// initiate heap allocator, frame allocator and kernel space
-pub fn init() {
+
+use crate::device_tree::DEVICE_TREE_NODES;
+
+pub fn init_allocators() {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
+}
+
+pub fn init_mmio_regions() {
     KERNEL_SPACE.exclusive_access().activate();
+
+    for device in DEVICE_TREE_NODES
+        .get()
+        .unwrap()
+        .as_slice()
+        .iter()
+        .filter(|d| d.is_valid())
+    {
+        KERNEL_SPACE
+            .exclusive_access()
+            .map_mmio(device.get_base_addr(), device.get_base_addr_size());
+        KERNEL_SPACE.exclusive_access().activate();
+    }
 }

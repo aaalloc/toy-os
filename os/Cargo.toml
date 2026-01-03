@@ -8,12 +8,17 @@ opt-level = 1
 debug = true
 
 [dependencies]
-virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+hashbrown = "0.16.1"
+spin = "0.10.0"
+pci_types = "0.10.0"
+tock-registers = "0.10.1"
+virtio-drivers = "0.12.0"
+fdt = "0.1.2"
 easy-fs = { path = "../easy-fs" }
 riscv = "0.11.1"
 sbi-rt = { version = "0.0.3", features = ["legacy"] }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-buddy_system_allocator = "0.10"
+buddy_system_allocator = "0.11.0"
 bitflags = "2.6.0"
 xmas-elf = "0.9.1"
 log = "0.4"

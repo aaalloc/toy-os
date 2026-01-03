@@ -2,6 +2,7 @@
 ///! Ref: ns16550a datasheet: https://datasheetspdf.com/pdf-file/605590/NationalSemiconductor/NS16550A/1
 ///! Ref: ns16450 datasheet: https://datasheetspdf.com/pdf-file/1311818/NationalSemiconductor/NS16450/1
 use super::UartDevice;
+use crate::drivers::plic::PlicDevice;
 use crate::sync::{/*Condvar,*/ Condvar, UPIntrFreeCell};
 use crate::task::schedule;
 extern crate alloc;
@@ -130,19 +131,21 @@ struct NS16550aInner {
     read_buffer: VecDeque<u8>,
 }
 
-pub struct NS16550a<const BASE_ADDR: usize> {
+pub struct NS16550a {
     inner: UPIntrFreeCell<NS16550aInner>,
+    irq_id: usize,
     condvar: Condvar,
 }
 
-impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
-    pub fn new() -> Self {
+impl NS16550a {
+    pub fn new(base_addr: usize, irq_id: usize) -> Self {
         let inner = NS16550aInner {
-            ns16550a: NS16550aRaw::new(BASE_ADDR),
+            ns16550a: NS16550aRaw::new(base_addr),
             read_buffer: VecDeque::new(),
         };
         Self {
             inner: unsafe { UPIntrFreeCell::new(inner) },
+            irq_id,
             condvar: Condvar::new(),
         }
     }
@@ -154,7 +157,26 @@ impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
     }
 }
 
-impl<const BASE_ADDR: usize> UartDevice for NS16550a<BASE_ADDR> {
+impl PlicDevice for NS16550a {
+    fn irq_id(&self) -> usize {
+        self.irq_id
+    }
+
+    fn irq_handler(&self) {
+        let mut count = 0;
+        self.inner.exclusive_session(|inner| {
+            while let Some(ch) = inner.ns16550a.read() {
+                count += 1;
+                inner.read_buffer.push_back(ch);
+            }
+        });
+        if count > 0 {
+            self.condvar.signal();
+        }
+    }
+}
+
+impl UartDevice for NS16550a {
     fn init(&self) {
         let mut inner = self.inner.exclusive_access();
         info!("init uart");
@@ -177,17 +199,5 @@ impl<const BASE_ADDR: usize> UartDevice for NS16550a<BASE_ADDR> {
     fn write(&self, ch: u8) {
         let mut inner = self.inner.exclusive_access();
         inner.ns16550a.write(ch);
-    }
-    fn handle_irq(&self) {
-        let mut count = 0;
-        self.inner.exclusive_session(|inner| {
-            while let Some(ch) = inner.ns16550a.read() {
-                count += 1;
-                inner.read_buffer.push_back(ch);
-            }
-        });
-        if count > 0 {
-            self.condvar.signal();
-        }
     }
 }

@@ -1,11 +1,9 @@
 use clap::{App, Arg};
-use easy_fs::{BlockDevice, EasyFileSystem, Inode};
+use easy_fs::{BlockDevice, EasyFileSystem, Inode, BLOCK_SZ};
 use std::fs::{read_dir, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Arc;
 use std::sync::Mutex;
-
-const BLOCK_SZ: usize = 512;
 
 struct BlockFile(Mutex<File>);
 

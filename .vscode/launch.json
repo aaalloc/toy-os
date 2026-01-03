@@ -1,0 +1,34 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug QEMU (RISC-V)",
+            "type": "cppdbg",
+            "request": "launch",
+
+            "program": "${workspaceFolder}/os/target/riscv64gc-unknown-none-elf/release/toy-os", 
+            "cwd": "${workspaceFolder}",
+
+            "MIMode": "gdb",
+            "miDebuggerPath": "gdb",        // ou riscv64-unknown-elf-gdb si tu l’utilises
+            "miDebuggerArgs": "-ex \"set arch riscv:rv64\"",
+
+            "externalConsole": false,
+
+            "setupCommands": [
+                {
+                    "description": "Set architecture",
+                    "text": "set arch riscv:rv64",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Connect to QEMU GDB server",
+                    "text": "target remote localhost:1234",
+                    "ignoreFailures": false
+                }
+            ],
+
+            "stopAtEntry": false
+        }
+    ]
+}

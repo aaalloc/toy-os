@@ -21,6 +21,18 @@ pub struct TaskControlBlock {
     inner: UPIntrFreeCell<TaskControlBlockInner>,
 }
 
+// fmt debug of task control block
+impl core::fmt::Debug for TaskControlBlock {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let inner = self.inner_exclusive_access();
+        f.debug_struct("TaskControlBlock")
+            .field("pid", &self.pid.0)
+            .field("task_status", &inner.task_status)
+            .field("base_size", &inner.base_size)
+            .finish()
+    }
+}
+
 pub struct TaskControlBlockInner {
     pub trap_cx_ppn: PhysPageNum,
     pub task_cx: TaskContext,
@@ -93,7 +105,7 @@ impl TaskControlBlock {
             user_sp,
             KERNEL_SPACE.exclusive_access().token(),
             kernel_stack_top,
-            trap_handler as usize,
+            trap_handler as *const () as usize,
         );
         task_control_block
     }
@@ -137,7 +149,7 @@ impl TaskControlBlock {
             user_sp,
             KERNEL_SPACE.exclusive_access().token(),
             self.kernel_stack.get_top(),
-            trap_handler as usize,
+            trap_handler as *const () as usize,
         );
         trap_cx.x[10] = args.len();
         trap_cx.x[11] = argv_base;
@@ -216,7 +228,7 @@ impl TaskControlBlockInner {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 /// task status: UnInit, Ready, Running, Exited
 pub enum TaskStatus {
     Ready,

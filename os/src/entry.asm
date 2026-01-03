@@ -1,8 +1,9 @@
+    .attribute arch, "rv64gc"    
     .section .text.entry
     .globl _start
 _start:
     la sp, boot_stack_top
-    call kmain
+    call {entry_point}
 
     .section .bss.stack
     .globl boot_stack_lower_bound
