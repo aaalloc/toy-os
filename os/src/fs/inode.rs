@@ -58,6 +58,18 @@ pub struct OSInodeInner {
     inode: Arc<Inode>,
 }
 
+impl core::fmt::Debug for OSInode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let inner = self.inner.exclusive_access();
+        f.debug_struct("OSInode")
+            .field("readable", &self.readable)
+            .field("writable", &self.writable)
+            .field("offset", &inner.offset)
+            .field("inode_id", &inner.inode.get_block_id())
+            .finish()
+    }
+}
+
 pub fn root_os_inode() -> Arc<OSInode> {
     Arc::new(OSInode::new(true, true, ROOT_INODE.clone()))
 }
@@ -181,6 +193,8 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
         });
         match inode {
             Some(inode) => {
+                info!("current inode = {:?}", &current_inode);
+                info!("opened inode = {:?}", &inode);
                 info!("open_file: file {:?} opened", name);
                 Some(inode)
             }

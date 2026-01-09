@@ -408,6 +408,27 @@ impl NVMeDevice {
         self
     }
 
+    pub fn send_io_write(
+        &mut self,
+        ns_id: u32,
+        lba: u64,
+        num_blocks: u16,
+        dma_buf_addr: usize,
+    ) -> &mut Self {
+        let cid = self.io_sq.tail as u16;
+        let tail = self.io_sq.submit(NVMeCommand::io_write(
+            cid,
+            ns_id,
+            lba,
+            num_blocks,
+            dma_buf_addr as u64,
+            0,
+        ));
+        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
+
+        self
+    }
+
     pub fn io_complete_command(&mut self, status: &mut u16) -> &mut Self {
         let (head, entry, _) = self.io_cq.complete_spin();
         self.nvme_dev.set_cq_head(self.q_id, head as u32);

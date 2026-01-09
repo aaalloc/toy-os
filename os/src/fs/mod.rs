@@ -16,6 +16,7 @@ pub trait File: Send + Sync {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct Dirent {
     pub type_: DirentType,
     pub name: CString,
@@ -27,6 +28,7 @@ impl Dirent {
     }
 }
 
+#[derive(Debug)]
 pub enum DirentType {
     File,
     #[allow(dead_code)]

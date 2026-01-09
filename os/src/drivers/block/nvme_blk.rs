@@ -2,7 +2,10 @@ extern crate alloc;
 
 use crate::{
     drivers::{
-        block::{nvme::NVMeDevice, BlockDeviceTmp},
+        block::{
+            nvme::{Dma, NVMeDevice},
+            BlockDeviceTmp,
+        },
         plic::PlicDevice,
     },
     sync::{Condvar, UPIntrFreeCell},
@@ -75,12 +78,33 @@ impl BlockDevice for NVMeBlock {
 
     fn write_block(&self, block_id: usize, buf: &[u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
+        // create dma buffer and copy data
+        let mut dma_buf = Dma::<[u8; 1024]>::new().unwrap();
+        dma_buf.as_mut_slice()[..buf.len()].copy_from_slice(buf);
         if nb {
-            // async
-            todo!()
+            self.doing_io.exclusive_access().clone_from(&true);
+            self.nvme_blk.exclusive_access().send_io_write(
+                1,
+                block_id as u64,
+                1 as u16,
+                dma_buf.paddr().0,
+            );
+            let task_cx_ptr = self.condvar.wait_no_sched();
+            crate::task::schedule(task_cx_ptr);
+            // TODO: currently handler ACK completion, so we just retrieve data here. This has to be done here
         } else {
-            // sync
-            todo!()
+            self.nvme_blk.exclusive_session(|nvme| {
+                let mut status = 0u16;
+                // 1 => 512 bytes
+                nvme.send_io_write(1, block_id as u64, 1 as u16, dma_buf.paddr().0)
+                    .io_complete_command(&mut status);
+                match status {
+                    0 => {}
+                    _ => {
+                        panic!("NVMe read_block failed with status: {}", status);
+                    }
+                }
+            });
         }
     }
 
@@ -105,6 +129,7 @@ impl BlockDevice for NVMeBlock {
 
 impl NVMeBlock {
     pub fn new(base_addr: usize, irq_id: usize) -> Result<Self, Box<dyn Error>> {
+        // return Err("bla".into());
         match NVMeDevice::new(base_addr) {
             Ok(nvme) => {
                 Ok(NVMeBlock {

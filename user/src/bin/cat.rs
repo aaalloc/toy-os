@@ -9,7 +9,9 @@ use user_lib::{close, open, read, OpenFlags};
 
 #[no_mangle]
 pub fn main(argc: usize, argv: &[&str]) -> i32 {
-    assert!(argc == 2);
+    if argc < 2 {
+        panic!("Usage: cat <file>");
+    }
     let fd = open(argv[1], OpenFlags::RDONLY);
     if fd == -1 {
         panic!("Error occured when opening file");
