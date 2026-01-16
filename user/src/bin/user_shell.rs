@@ -105,7 +105,13 @@ pub fn main() -> i32 {
                 }
             }
             _ => {
-                print!("{}", c as char);
+                // Print raw, safely
+                if c.is_ascii_graphic() || c == b' ' {
+                    print!("{}", c as char);
+                } else {
+                    // For non-printables, show hex
+                    print!("\\x{:02X}", c);
+                }
                 line.push(c as char);
             }
         }

@@ -23,7 +23,7 @@ pub fn main(argc: usize, argv: &[&str]) -> i32 {
         if size == 0 {
             break;
         }
-        print!("{}", core::str::from_utf8(&buf[..size]).unwrap());
+        print!("{}", alloc::string::String::from_utf8_lossy(&buf[..size]));
     }
     close(fd);
     0
