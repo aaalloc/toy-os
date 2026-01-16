@@ -14,7 +14,8 @@ pub fn main(argc: usize, argv: &[&str]) -> i32 {
     }
     let fd = open(argv[1], OpenFlags::RDONLY);
     if fd == -1 {
-        panic!("Error occured when opening file");
+        println!("cat: cannot open file {}", argv[1]);
+        return -1;
     }
     let fd = fd as usize;
     let mut buf = [0u8; 256];

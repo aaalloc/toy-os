@@ -1,0 +1,8 @@
+probe process("qemu-system-riscv64").trace("pci*") {
+    printf(
+        "[%d] %s %s\n",
+        gettimeofday_ms(),
+        probefunc(),
+        $$parms
+    )
+}

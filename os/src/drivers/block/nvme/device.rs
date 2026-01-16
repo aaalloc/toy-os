@@ -437,6 +437,10 @@ impl NVMeDevice {
         self
     }
 
+    pub fn io_peek_command(&mut self) -> Option<NVMeCompletion> {
+        self.io_cq.peek_completion()
+    }
+
     pub fn retrieve_dma_buffer(&self, size: usize) -> &[u8] {
         &self.buffer.as_slice()[0..size]
     }

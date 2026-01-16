@@ -68,6 +68,7 @@ impl<'a> BlockDevice for VirtIOBlock<'static> {
     fn write_block(&self, block_id: usize, buf: &[u8]) {
         let nb = *DEV_NON_BLOCKING_ACCESS.exclusive_access();
         if nb {
+            info!("VirtIOBlk write_block {} requested for block {}", "async", block_id);
             let mut req = BlkReq::default();
             let mut resp = BlkResp::default();
             let mut token = 0u16;

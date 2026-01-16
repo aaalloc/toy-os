@@ -101,6 +101,7 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
     if let Some(app_inode) = app_inode {
         let all_data = app_inode.read_all();
         if all_data.is_empty() {
+            log::error!("no data for binary");
             return -1;
         }
         let task = current_task().unwrap();
