@@ -44,6 +44,9 @@ jobs:
         # Use the makefile to build the kernel and fs-img
         make build_env_check MODE=release
 
+    - name: Verify emscripten
+      run: emcc -v
+      
     - name: Package with Emscripten
       run: |
         file_packager toy-os.data \
