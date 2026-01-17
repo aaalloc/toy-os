@@ -44,12 +44,9 @@ jobs:
         # Use the makefile to build the kernel and fs-img
         make build_env_check MODE=release
 
-    - name: Verify emscripten
-      run: emcc -v
-      
     - name: Package with Emscripten
       run: |
-        file_packager toy-os.data \
+        $EMSDK/upstream/emscripten/tools/file_packager  toy-os.data \
           --preload ./opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin@fw_jump.bin \
           --preload ./os/target/riscv64gc-unknown-none-elf/release/toy-os.bin@toy-os.bin \
           --preload ./user/target/riscv64gc-unknown-none-elf/release/fs-nvme.img@fs-nvme.img \
