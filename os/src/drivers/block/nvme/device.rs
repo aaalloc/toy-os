@@ -396,23 +396,6 @@ impl NVMeDevice {
             block_size: block_size,
         }
     }
-    pub fn send_io_read(&mut self, ns: &NVMeNamespace, lba: u64, blocks: u16) -> &mut Self {
-        let cid = self.io_sq.tail as u16;
-
-        // NVMe expects zero-based block count
-        let nlb = blocks - 1;
-
-        let total_bytes = blocks as usize * ns.block_size as usize;
-
-        let (prp1, prp2) = self.build_prp(self.buffer.paddr().0 as u64, total_bytes);
-
-        let tail = self
-            .io_sq
-            .submit(NVMeCommand::io_read(cid, ns.id, lba, nlb, prp1, prp2));
-        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
-
-        self
-    }
 
     fn build_prp(&mut self, buf_paddr: u64, total_bytes: usize) -> (u64, u64) {
         let pages = (total_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -434,29 +417,43 @@ impl NVMeDevice {
         }
     }
 
+    fn submit_io(
+        &mut self,
+        ns: &NVMeNamespace,
+        lba: u64,
+        blocks: u16,
+        dma_buf_addr: u64,
+        build_cmd: impl FnOnce(u16, u32, u64, u16, u64, u64) -> NVMeCommand,
+    ) -> &mut Self {
+        assert!(blocks > 0, "blocks must be > 0");
+
+        let cid = self.io_sq.tail as u16;
+        let nlb = blocks - 1;
+        let total_bytes = blocks as usize * ns.block_size as usize;
+
+        let (prp1, prp2) = self.build_prp(dma_buf_addr, total_bytes);
+
+        let tail = self
+            .io_sq
+            .submit(build_cmd(cid, ns.id, lba, nlb, prp1, prp2));
+
+        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
+        self
+    }
+
+    pub fn send_io_read(&mut self, ns: &NVMeNamespace, lba: u64, blocks: u16) -> &mut Self {
+        let dma = self.buffer.paddr().0 as u64;
+        self.submit_io(ns, lba, blocks, dma, NVMeCommand::io_read)
+    }
+
     pub fn send_io_write(
         &mut self,
         ns: &NVMeNamespace,
-        // 1 => 512 bytes
         lba: u64,
         blocks: u16,
         dma_buf_addr: usize,
     ) -> &mut Self {
-        let cid = self.io_sq.tail as u16;
-
-        // NVMe expects zero-based block count
-        let nlb = blocks - 1;
-
-        let total_bytes = blocks as usize * ns.block_size as usize;
-
-        let (prp1, prp2) = self.build_prp(dma_buf_addr as u64, total_bytes);
-
-        let tail = self
-            .io_sq
-            .submit(NVMeCommand::io_write(cid, ns.id, lba, nlb, prp1, prp2));
-
-        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
-        self
+        self.submit_io(ns, lba, blocks, dma_buf_addr as u64, NVMeCommand::io_write)
     }
 
     pub fn io_complete_command(&mut self, status: &mut u16) -> &mut Self {
