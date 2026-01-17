@@ -193,8 +193,6 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
         });
         match inode {
             Some(inode) => {
-                info!("current inode = {:?}", &current_inode);
-                info!("opened inode = {:?}", &inode);
                 info!("open_file: file {:?} opened", name);
                 Some(inode)
             }

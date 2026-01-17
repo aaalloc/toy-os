@@ -14,6 +14,8 @@ use crate::drivers::block::nvme::{
     queue::{NVMeCompletion, NVMeCompletionQueue, NVMeSubmissionQueue, QUEUE_LENGTH},
 };
 
+use crate::config::PAGE_SIZE;
+
 // https://files.futurememorystorage.com/proceedings/2013/20130812_PreConfD_Marks.pdf
 
 register_bitfields! [
@@ -215,6 +217,7 @@ pub struct NVMeDevice {
     io_sq: NVMeSubmissionQueue,
     io_cq: NVMeCompletionQueue,
     buffer: Dma<[u8; 2 * 1024]>, // 2 MiB buffer
+    prp_list: Dma<[u64; 512]>,
     ns: BTreeMap<u32, NVMeNamespace>,
     q_id: u16,
 }
@@ -241,6 +244,7 @@ impl NVMeDevice {
             io_sq: NVMeSubmissionQueue::new(0)?,
             io_cq: NVMeCompletionQueue::new(0)?,
             buffer: Dma::new()?,
+            prp_list: Dma::new()?,
             q_id: 1,
             ns: BTreeMap::new(),
         };
@@ -392,40 +396,66 @@ impl NVMeDevice {
             block_size: block_size,
         }
     }
-
-    pub fn send_io_read(&mut self, ns_id: u32, lba: u64, num_blocks: u16) -> &mut Self {
+    pub fn send_io_read(&mut self, ns: &NVMeNamespace, lba: u64, blocks: u16) -> &mut Self {
         let cid = self.io_sq.tail as u16;
-        let tail = self.io_sq.submit(NVMeCommand::io_read(
-            cid,
-            ns_id,
-            lba,
-            num_blocks,
-            self.buffer.paddr().0 as u64,
-            0,
-        ));
+
+        // NVMe expects zero-based block count
+        let nlb = blocks - 1;
+
+        let total_bytes = blocks as usize * ns.block_size as usize;
+
+        let (prp1, prp2) = self.build_prp(self.buffer.paddr().0 as u64, total_bytes);
+
+        let tail = self
+            .io_sq
+            .submit(NVMeCommand::io_read(cid, ns.id, lba, nlb, prp1, prp2));
         self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
 
         self
     }
 
+    fn build_prp(&mut self, buf_paddr: u64, total_bytes: usize) -> (u64, u64) {
+        let pages = (total_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+        let prp1 = buf_paddr;
+
+        match pages {
+            0 | 1 => (prp1, 0),
+
+            2 => (prp1, buf_paddr + PAGE_SIZE as u64),
+
+            _ => {
+                // PRP list contains pages 2..N
+                for i in 0..(pages - 1) {
+                    self.prp_list[i] = buf_paddr + ((i + 1) * PAGE_SIZE) as u64;
+                }
+                let prp2 = self.prp_list.paddr().0 as u64;
+                (prp1, prp2)
+            }
+        }
+    }
+
     pub fn send_io_write(
         &mut self,
-        ns_id: u32,
+        ns: &NVMeNamespace,
+        // 1 => 512 bytes
         lba: u64,
-        num_blocks: u16,
+        blocks: u16,
         dma_buf_addr: usize,
     ) -> &mut Self {
         let cid = self.io_sq.tail as u16;
-        let tail = self.io_sq.submit(NVMeCommand::io_write(
-            cid,
-            ns_id,
-            lba,
-            num_blocks,
-            dma_buf_addr as u64,
-            0,
-        ));
-        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
 
+        // NVMe expects zero-based block count
+        let nlb = blocks - 1;
+
+        let total_bytes = blocks as usize * ns.block_size as usize;
+
+        let (prp1, prp2) = self.build_prp(dma_buf_addr as u64, total_bytes);
+
+        let tail = self
+            .io_sq
+            .submit(NVMeCommand::io_write(cid, ns.id, lba, nlb, prp1, prp2));
+
+        self.nvme_dev.set_sq_tail(self.q_id, tail as u32);
         self
     }
 
@@ -439,5 +469,17 @@ impl NVMeDevice {
 
     pub fn retrieve_dma_buffer(&self, size: usize) -> &[u8] {
         &self.buffer.as_slice()[0..size]
+    }
+
+    pub fn get_io_submission_queue(&mut self) -> &mut NVMeSubmissionQueue {
+        &mut self.io_sq
+    }
+
+    pub fn get_io_completion_queue(&mut self) -> &mut NVMeCompletionQueue {
+        &mut self.io_cq
+    }
+
+    pub fn get_ns(&self, id: u32) -> Option<NVMeNamespace> {
+        self.ns.get(&id).copied()
     }
 }

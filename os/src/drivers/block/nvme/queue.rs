@@ -56,6 +56,14 @@ impl NVMeSubmissionQueue {
     pub fn get_addr(&self) -> usize {
         self.commands.paddr().0 as usize
     }
+
+    pub fn peek(&self) -> Option<&NVMeCommand> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(&self.commands[self.head])
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -128,6 +136,16 @@ impl NVMeCompletionQueue {
                 return val;
             }
             core::hint::spin_loop();
+        }
+    }
+
+    pub fn peek(&self) -> Option<&NVMeCompletion> {
+        let entry = &self.commands[self.head];
+
+        if ((entry.status & 1) == 1) == self.phase {
+            Some(entry)
+        } else {
+            None
         }
     }
 
