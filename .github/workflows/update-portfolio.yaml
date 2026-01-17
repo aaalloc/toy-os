@@ -18,9 +18,15 @@ jobs:
         if: github.event_name == 'release'
         run: echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
 
-      - name: Set manual tag name
+      - name: Get latest release tag (manual trigger)
         if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=manual-trigger" >> $GITHUB_ENV
+        run: |
+          TAG=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases/latest \
+            | jq -r '.tag_name')
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
 
       - name: Set tag from workflow_call
         if: github.event_name == 'workflow_call'
