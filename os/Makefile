@@ -54,7 +54,7 @@ kernel:
 	@cd ../user && make build
 	@echo Platform: $(BOARD)
 	@cp src/linker-$(BOARD).ld src/linker.ld
-	@ENTRY_POINT=$(ENTRY_POINT) cargo build $(MODE_ARG)
+	@ENTRY_POINT=$(ENTRY_POINT) LOG=INFO cargo build $(MODE_ARG)
 	@rm src/linker.ld
 
 
@@ -110,7 +110,7 @@ ifeq ($(BOARD), qemu)
 else ifeq ($(BOARD), nobios)
 	@qemu-system-riscv64 $(QEMU_ARGS_NO_BOOTLOADER)
 else ifeq ($(BOARD), rvvm)
-	@$(RVVM_BIN) \
+	$(RVVM_BIN) \
 	$(BOOTLOADER) \
 	-k $(KERNEL_BIN) \
 	-nvme $(FS_IMG_NVME) \

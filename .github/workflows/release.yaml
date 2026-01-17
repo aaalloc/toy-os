@@ -69,12 +69,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # - name: Trigger External Pipeline
-    #   uses: peter-evans/repository-dispatch@v3
-    #   with:
-    #     # You must create a Personal Access Token (PAT) with repo scope and add it as a secret named PAT_TOKEN
-    #     token: ${{ secrets.PAT_TOKEN }}
-    #     # TODO: Replace with the actual repository you want to trigger (e.g., username/repo-name)
-    #     repository: username/other-repo
-    #     event-type: toy-os-release
-    #     client-payload: '{"version": "${{ env.TAG_NAME }}"}'
+    - name: Trigger External Pipeline
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ secrets.PAT_TOKEN }}
+        repository: aaalloc/portfolio-2023
+        event-type: toy-os-release
+        client-payload: '{"version": "${{ env.TAG_NAME }}", "repository": "aaalloc/toy-os"}'
