@@ -1,2 +1,6 @@
 /target
 /src/link_app.S
+*.bin
+*.js
+*.img
+*.data

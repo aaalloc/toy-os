@@ -37,11 +37,15 @@ else ifeq ($(BOARD), nobios)
 	ENTRY_POINT := start
 endif
 
-build: env $(KERNEL_BIN) fs-img
+build_env_check: env build
+
+build: $(KERNEL_BIN) fs-img
+	@ln -sf ../os/$(KERNEL_BIN) ./toy-os.bin
+	@ln -sf ../user/$(FS_IMG) ./fs.img
 
 env:
-# 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
-# 	cargo install cargo-binutils
+	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
+	cargo install cargo-binutils
 
 $(KERNEL_BIN): kernel
 	@$(OBJCOPY) $(KERNEL_ELF) --strip-all -O binary $@

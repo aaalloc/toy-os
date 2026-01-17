@@ -1,0 +1,80 @@
+name: Release Toy OS
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust (OS)
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        targets: riscv64gc-unknown-none-elf
+        components: rust-src, llvm-tools-preview
+
+    - name: Setup Rust (User)
+      # This step ensures the specific toolchain defined in user/rust-toolchain.toml is installed
+      # before the build script runs, avoiding timeouts or silenced output during make.
+      working-directory: user
+      run: cargo --version
+
+    - name: Install cargo-binutils
+      run: cargo install cargo-binutils
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+
+    - name: Download OpenSBI
+      run: |
+        wget https://github.com/riscv-software-src/opensbi/releases/download/v1.5.1/opensbi-1.5.1-rv-bin.tar.xz
+        tar -xf opensbi-1.5.1-rv-bin.tar.xz
+
+    - name: Build OS
+      working-directory: os
+      run: |
+        # Use the makefile to build the kernel and fs-img
+        make build_env_check MODE=release
+
+    - name: Package with Emscripten
+      run: |
+        file_packager toy-os.data \
+          --preload ./opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin@fw_jump.bin \
+          --preload ./os/target/riscv64gc-unknown-none-elf/release/toy-os.bin@toy-os.bin \
+          --preload ./user/target/riscv64gc-unknown-none-elf/release/fs-nvme.img@fs-nvme.img \
+          --js-output=load-toy-os.js \
+          --export-es6
+
+    - name: Create Tag Name
+      run: echo "TAG_NAME=v0.1.${{ github.run_number }}" >> $GITHUB_ENV
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        name: Release ${{ env.TAG_NAME }}
+        files: |
+          toy-os.data
+          load-toy-os.js
+          ./os/target/riscv64gc-unknown-none-elf/release/toy-os.bin
+          ./user/target/riscv64gc-unknown-none-elf/release/fs-nvme.img
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Trigger External Pipeline
+    #   uses: peter-evans/repository-dispatch@v3
+    #   with:
+    #     # You must create a Personal Access Token (PAT) with repo scope and add it as a secret named PAT_TOKEN
+    #     token: ${{ secrets.PAT_TOKEN }}
+    #     # TODO: Replace with the actual repository you want to trigger (e.g., username/repo-name)
+    #     repository: username/other-repo
+    #     event-type: toy-os-release
+    #     client-payload: '{"version": "${{ env.TAG_NAME }}"}'
