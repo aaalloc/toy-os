@@ -20,6 +20,15 @@ pub struct Inode {
     block_device: Arc<dyn BlockDevice>,
 }
 
+impl core::fmt::Debug for Inode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Inode")
+            .field("block_id", &self.block_id)
+            .field("block_offset", &self.block_offset)
+            .finish()
+    }
+}
+
 impl PartialEq for Inode {
     fn eq(&self, other: &Self) -> bool {
         self.block_id == other.block_id && self.block_offset == other.block_offset
@@ -146,7 +155,10 @@ impl Inode {
         if inode.is_root() {
             return alloc::format!("/{}", path);
         }
-        let parent = inode.get_parent().expect("parent should exist");
+        let parent = match inode.get_parent() {
+            Some(p) => p,
+            None => panic!("{:?} has no parent", inode),
+        };
         let name = inode.get_name().expect("name should exist");
         self.helper_cwd(
             if path == "" {

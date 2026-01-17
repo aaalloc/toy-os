@@ -8,6 +8,7 @@ const BLOCK_BITS: usize = BLOCK_SZ * 8;
 
 type BitmapBlock = [u64; 64];
 
+#[derive(Debug)]
 pub struct Bitmap {
     start_block_id: usize,
     blocks: usize,

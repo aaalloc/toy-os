@@ -19,6 +19,18 @@ pub struct EasyFileSystem {
     data_area_start_block: u32,
 }
 
+// for debugging, i want to display data block content
+impl core::fmt::Debug for EasyFileSystem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("EasyFileSystem")
+            .field("inode_bitmap", &self.inode_bitmap)
+            .field("data_bitmap", &self.data_bitmap)
+            .field("inode_area_start_block", &self.inode_area_start_block)
+            .field("data_area_start_block", &self.data_area_start_block)
+            .finish()
+    }
+}
+
 type DataBlock = [u8; BLOCK_SZ];
 /// An easy fs over a block device
 impl EasyFileSystem {
