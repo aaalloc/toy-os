@@ -1,0 +1,36 @@
+name: Update Portfolio
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  trigger-portfolio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name (release)
+        if: github.event_name == 'release'
+        run: echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+
+      - name: Set manual tag name
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=manual-trigger" >> $GITHUB_ENV
+
+      - name: Set tag from workflow_call
+        if: github.event_name == 'workflow_call'
+        run: echo "TAG_NAME=${{ inputs.version }}" >> $GITHUB_ENV
+
+      - name: Trigger External Pipeline
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: aaalloc/portfolio-2023
+          event-type: toy-os-release
+          client-payload: >
+            {"version":"${{ env.TAG_NAME }}","repository":"aaalloc/toy-os"}

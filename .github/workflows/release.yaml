@@ -68,11 +68,7 @@ jobs:
           ./user/target/riscv64gc-unknown-none-elf/release/fs-nvme.img
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Trigger External Pipeline
-      uses: peter-evans/repository-dispatch@v3
+    - name: Update portfolio website
+      uses: ./.github/workflows/update-portfolio.yml
       with:
-        token: ${{ secrets.PAT_TOKEN }}
-        repository: aaalloc/portfolio-2023
-        event-type: toy-os-release
-        client-payload: '{"version": "${{ env.TAG_NAME }}", "repository": "aaalloc/toy-os"}'
+        version: ${{ env.TAG_NAME }}
