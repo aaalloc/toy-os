@@ -33,15 +33,28 @@ jobs:
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
 
+    - name: Cache OpenSBI
+      id: cache-opensbi
+      uses: actions/cache@v3
+      with:
+        path: opensbi-1.5.1-rv-bin
+        key: ${{ runner.os }}-opensbi-v1.5.1
+
     - name: Download and Build OpenSBI
+      if: steps.cache-opensbi.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/riscv-software-src/opensbi.git
         cd opensbi
         git checkout v1.5.1
-        make PLATFORM=generic FW_OPTIONS=0x1
-        # Organize the output to match the expected structure
+
+        sudo apt-get update
+        sudo apt-get install -y gcc-riscv64-linux-gnu
+
+        make PLATFORM=generic FW_OPTIONS=0x1 CROSS_COMPILE=riscv64-linux-gnu-
+
         mkdir -p ../opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/
-        cp build/platform/generic/firmware/fw_jump.bin ../opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin
+        cp build/platform/generic/firmware/fw_jump.bin \
+          ../opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin
 
     - name: Build OS
       working-directory: os
