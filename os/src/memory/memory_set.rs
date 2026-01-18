@@ -13,7 +13,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::arch::asm;
 use lazy_static::*;
-use log::info;
+use log::debug;
 use riscv::register::satp;
 
 extern "C" {
@@ -102,23 +102,23 @@ impl MemorySet {
         // map trampoline
         memory_set.map_trampoline();
         // map kernel sections
-        info!(
+        debug!(
             ".text [{:#x}, {:#x})",
             stext as *const () as usize, etext as *const () as usize
         );
-        info!(
+        debug!(
             ".rodata [{:#x}, {:#x})",
             srodata as *const () as usize, erodata as *const () as usize
         );
-        info!(
+        debug!(
             ".data [{:#x}, {:#x})",
             sdata as *const () as usize, edata as *const () as usize
         );
-        info!(
+        debug!(
             ".bss [{:#x}, {:#x})",
             sbss_with_stack as *const () as usize, ebss as *const () as usize
         );
-        info!("mapping .text section");
+        debug!("mapping .text section");
         memory_set.push(
             MapArea::new(
                 (stext as *const () as usize).into(),
@@ -128,7 +128,7 @@ impl MemorySet {
             ),
             None,
         );
-        info!("mapping .rodata section");
+        debug!("mapping .rodata section");
         memory_set.push(
             MapArea::new(
                 (srodata as *const () as usize).into(),
@@ -138,7 +138,7 @@ impl MemorySet {
             ),
             None,
         );
-        info!("mapping .data section");
+        debug!("mapping .data section");
         memory_set.push(
             MapArea::new(
                 (sdata as *const () as usize).into(),
@@ -148,7 +148,7 @@ impl MemorySet {
             ),
             None,
         );
-        info!("mapping .bss section");
+        debug!("mapping .bss section");
         memory_set.push(
             MapArea::new(
                 (sbss_with_stack as *const () as usize).into(),
@@ -158,7 +158,7 @@ impl MemorySet {
             ),
             None,
         );
-        info!("mapping physical memory");
+        debug!("mapping physical memory");
         memory_set.push(
             MapArea::new(
                 (ekernel as *const () as usize).into(),
@@ -175,7 +175,7 @@ impl MemorySet {
     pub fn map_mmio(&mut self, start_addr: usize, length: usize) {
         let start_va = VirtAddr(start_addr);
         let end_va = VirtAddr(start_addr + length);
-        info!("mapping MMIO: {:?} - {:?}", start_va, end_va);
+        debug!("mapping MMIO: {:?} - {:?}", start_va, end_va);
         self.push(
             MapArea::new(
                 start_va,

@@ -3,4 +3,4 @@ mod device;
 mod dma;
 mod queue;
 pub use device::NVMeDevice;
-pub use dma::{DMAError, Dma};
+pub use dma::Dma;

@@ -1,7 +1,7 @@
 use core::error::Error;
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String};
-use log::info;
+use log::{debug, info, warn};
 use tock_registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
@@ -277,13 +277,13 @@ impl NVMeDevice {
 
         let qid = self.q_id;
         let addr = self.io_cq.get_addr();
-        info!("Requesting i/o completion queue");
+        debug!("Requesting i/o completion queue");
         let comp = self.submit_and_complete_admin(|c_id, _| {
             NVMeCommand::create_io_completion_queue(c_id, qid, addr, (QUEUE_LENGTH - 1) as u16)
         })?;
 
         let addr = self.io_sq.get_addr();
-        info!("Requesting i/o submission queue");
+        debug!("Requesting i/o submission queue");
         let comp = self.submit_and_complete_admin(|c_id, _| {
             NVMeCommand::create_io_submission_queue(c_id, qid, addr, (QUEUE_LENGTH - 1) as u16, qid)
         })?;
@@ -329,14 +329,14 @@ impl NVMeDevice {
 
         let status = entry.status >> 1;
         if status != 0 {
-            info!("Admin command failed with status: {}", status);
+            warn!("Admin command failed with status: {}", status);
             return Err(alloc::format!("Admin command failed with status: {}", status).into());
         }
         Ok(entry)
     }
 
     pub fn identify_controller(&mut self) -> Result<(), Box<dyn Error>> {
-        info!("Trying to identify controller");
+        debug!("Trying to identify controller");
         self.submit_and_complete_admin(NVMeCommand::identify_controller)?;
 
         let data = &self.buffer;

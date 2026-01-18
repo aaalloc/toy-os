@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use bitflags::bitflags;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::lazy_static;
-use log::info;
+use log::debug;
 
 use crate::{
     drivers::block::BlockDeviceManager, memory::UserBuffer, sync::UPIntrFreeCell,
@@ -193,11 +193,11 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
         });
         match inode {
             Some(inode) => {
-                info!("open_file: file {:?} opened", name);
+                debug!("open_file: file {:?} opened", name);
                 Some(inode)
             }
             None => {
-                info!("open_file: file {:?} not found", name);
+                debug!("open_file: file {:?} not found", name);
                 None
             }
         }

@@ -8,7 +8,6 @@ use crate::task::schedule;
 extern crate alloc;
 use alloc::collections::VecDeque;
 use bitflags::*;
-use log::info;
 use volatile::{ReadOnly, Volatile, WriteOnly};
 
 bitflags! {
@@ -179,7 +178,6 @@ impl PlicDevice for NS16550a {
 impl UartDevice for NS16550a {
     fn init(&self) {
         let mut inner = self.inner.exclusive_access();
-        info!("init uart");
         inner.ns16550a.init();
         drop(inner);
     }

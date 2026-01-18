@@ -33,10 +33,15 @@ jobs:
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14
 
-    - name: Download OpenSBI
+    - name: Download and Build OpenSBI
       run: |
-        wget https://github.com/riscv-software-src/opensbi/releases/download/v1.5.1/opensbi-1.5.1-rv-bin.tar.xz
-        tar -xf opensbi-1.5.1-rv-bin.tar.xz
+        git clone https://github.com/riscv-software-src/opensbi.git
+        cd opensbi
+        git checkout v1.5.1
+        make PLATFORM=generic FW_OPTIONS=0x1
+        # Organize the output to match the expected structure
+        mkdir -p ../opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/
+        cp build/platform/generic/firmware/fw_jump.bin ../opensbi-1.5.1-rv-bin/share/opensbi/lp64/generic/firmware/fw_jump.bin
 
     - name: Build OS
       working-directory: os
