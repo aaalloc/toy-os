@@ -87,6 +87,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Update portfolio website
-      uses: ./.github/workflows/update-portfolio.yml
+      uses: ./.github/workflows/update-portfolio.yaml
       with:
         version: ${{ env.TAG_NAME }}
