@@ -14,7 +14,10 @@ Toy project around an kernel written in Rust/RISC-V
   - [x] Block device (virtio, PCI/NVMe)
   - [ ] Network
 
-
+## Demo
+### Web demo
+Running with RVVM/WASM/Emscripten : https://yanovskyy.com/wasm/toy-os
+### Video
 https://github.com/user-attachments/assets/c0c72448-4394-4103-9d39-1057909a5819
 
 ## Run the os
